@@ -1,4 +1,4 @@
 # Buzzin contractor dashboard
 
-- `chatgpt-prototype/`: the first design, prepared with ChatGPT. Kept as-is for reference.
-- `redesign/`: the improved design (in progress).
+- `redesign/`: the new design. Open `redesign/index.html`. Read `redesign/HANDOFF.md` for the design rules, the settings field list and where each old screen moved.
+- `chatgpt-prototype/`: the first design, made with ChatGPT. Kept for reference.
