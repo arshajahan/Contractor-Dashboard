@@ -151,7 +151,10 @@ svg.i { width: 16px; height: 16px; flex: none; }
 
 /* ---------- Shell ---------- */
 .app { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 100vh; }
-.sidebar { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--side); color: var(--side-text); display: flex; flex-direction: column; padding: 20px 14px; gap: 20px; }
+/* The navy column always fills the full page height; only its contents stay pinned while scrolling. */
+.sidebar { background: var(--side); color: var(--side-text); min-height: 100vh; }
+.side-inner { position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; padding: 20px 14px; gap: 20px; }
+.drawer .side-inner { position: static; height: 100%; }
 .logo { display: flex; align-items: baseline; gap: 8px; padding: 0 8px; font-size: 24px; font-weight: 800; letter-spacing: -1px; color: var(--side-strong); }
 .logo span { color: var(--brand); }
 .logo small { font-size: 10.5px; letter-spacing: .12em; font-weight: 650; color: var(--side-text); text-transform: uppercase; }

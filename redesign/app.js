@@ -1023,7 +1023,7 @@ function renderModal() {
     ${F({ id: 'ac-msg', label: 'Message', opt: true, bind: 'm.message', type: 'textarea', rows: 3, ph: 'For example, We maintain HVAC systems for several owners in your community.' })}
     ${alertBox('info', 'Shared with the community', 'Company name, trade licence, TRN and your insurance documents.')}`,
     foot: btn('Cancel', { act: 'closeModal' }) + btn('Send request', { v: 'primary', icon: 'send', act: 'sendAccess' }) }); }
-  if (m.type === 'drawer') return `<div class="overlay drawer-overlay" data-overlay style="place-items:stretch start"><div class="drawer left sidebar" role="dialog" aria-modal="true" aria-label="Menu" style="position:static;height:100%">${sidebar(route())}</div></div>`;
+  if (m.type === 'drawer') return `<div class="overlay drawer-overlay" data-overlay style="place-items:stretch start"><div class="drawer left sidebar" role="dialog" aria-modal="true" aria-label="Menu" style="position:static;height:100%"><div class="side-inner">${sidebar(route())}</div></div></div>`;
   if (m.type === 'preview') return modalFrame({ title: esc(m.data.name), sub: 'File preview', size: 'lg', body: `<div class="paper" style="max-width:none;min-height:320px;place-content:center;text-align:center"><p>Preview of <b>${esc(m.data.name)}</b></p><p class="small">The live portal shows the uploaded file here.</p></div>`, foot: btn('Close', { act: 'closeModal' }) });
   return '';
 }
@@ -1072,7 +1072,7 @@ function render() {
   const sel = focusId && a.selectionStart != null ? [a.selectionStart, a.selectionEnd] : null;
   const inWizard = STEPS.some(s => s[0] === r) && S.draft;
   document.getElementById('app').innerHTML = `<div class="app ${inWizard ? 'has-actionbar' : ''}">
-    <aside class="sidebar">${sidebar(r)}</aside>
+    <aside class="sidebar"><div class="side-inner">${sidebar(r)}</div></aside>
     <div class="main">${topbar()}<main class="content" id="main">${page(r)}</main>${bottomNav(r)}</div>
   </div>${rowMenuLayer()}${renderModal()}`;
   document.title = (TITLES[r] || (r.startsWith('settings') ? 'Settings' : r.startsWith('permit-') ? r.slice(7) : STEPS.find(s => s[0] === r)?.[1]) || 'Buzzin') + ' · Buzzin contractor portal';
