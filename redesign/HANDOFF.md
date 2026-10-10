@@ -79,7 +79,7 @@ Implementation notes: store each form's PDF, field positions as % of page size, 
 ## Community logo (co-branding)
 
 - Each community has its own logo, uploaded by community staff on the admin side under **Community profile**. The same rules apply as for company logos: any image type, shown contained, automatic light or dark background, with an override.
-- Contractors see it in the sidebar under the Buzzin logo (logo, community name and area), in the community dropdown in the top bar, and in the community list. It changes when they switch community.
+- Contractors see it at the top of the sidebar, as the logo only with no Buzzin wordmark and no name, because the name is in the top bar. It also shows in the community dropdown in the top bar and in the community list. It changes when they switch community.
 - Communities without a logo show their initials.
 
 ## Expiry rule

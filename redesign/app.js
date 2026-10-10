@@ -347,8 +347,7 @@ function navKey(r) {
 function sidebar(r) {
   const nk = navKey(r);
   const action = passesHere().filter(p => p.status === 'changes').length;
-  return `<div class="logo"><span class="wm">buzz<span>in</span></span><small>Contractor</small></div>
-  ${communityCard()}
+  return `${communityCard()}
   <nav class="side-nav" aria-label="Main">${NAV.map(([g, items]) => `<div class="side-label">${g}</div>${items.map(([k, l, i]) => `<button class="nav-item ${nk === k ? 'active' : ''}" data-go="${k}" ${nk === k ? 'aria-current="page"' : ''}>${ic(i)}<span>${l}</span>${k === 'permits' && action ? `<span class="count" title="${action} need your action">${action}</span>` : ''}</button>`).join('')}`).join('')}</nav>
   <div class="side-foot">
     <div class="side-help"><strong>Need help with a pass?</strong><p>${esc(community().name)} reviews all requests. Include your pass reference when you contact them.</p>${btn('Contact community', { go: 'help', sm: true, icon: 'mail' })}</div>
@@ -930,12 +929,12 @@ function formStatus(f) {
 const curAdminForm = () => S.forms.find(x => x.id === route().slice(11));
 function communityCard() {
   const c = community();
-  return `<div class="side-community" title="${esc(c.name)}">${logoTile(c.logo, c.name, 'md')}<div><b>${esc(c.name)}</b><span>${esc(c.area)}</span></div></div>`;
+  // Community logo only: the community name is already shown in the top bar.
+  return `<div class="side-brand">${logoTile(c.logo, c.name, 'brand')}</div>`;
 }
 function adminSidebar() {
   const r = route();
-  return `<div class="logo"><span class="wm">buzz<span>in</span></span><small>Community admin</small></div>
-  ${communityCard()}
+  return `${communityCard()}
   <nav class="side-nav" aria-label="Admin"><div class="side-label">Manage</div>${[['admin-forms', 'Permit forms', 'file'], ['admin-profile', 'Community profile', 'building']].map(([k, l, i]) => { const on = k === 'admin-forms' ? r.startsWith('admin-form') : r === k; return `<button class="nav-item ${on ? 'active' : ''}" data-go="${k}" ${on ? 'aria-current="page"' : ''}>${ic(i)}<span>${l}</span></button>`; }).join('')}</nav>
   <div class="side-foot"><div class="side-help"><strong>Community admin view</strong><p>Design preview of the side community staff use. In the live product it has its own login.</p>${btn('Back to contractor portal', { go: 'home', sm: true, icon: 'arrowL' })}</div></div>`;
 }
@@ -944,7 +943,7 @@ function pAdminProfile() {
   return `${pageHead('Community profile', 'How your community appears to contractors in the Buzzin portal.')}
   ${card('Logo', `<div class="logo-up">${logoTile(L, c.name, 'lg')}<div class="row"><label class="btn btn-secondary btn-sm" for="community-logo-up">${ic('upload')}${L ? 'Replace logo' : 'Upload logo'}</label><input class="file-input" id="community-logo-up" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp,.png,.jpg,.jpeg,.svg,.webp" data-file="community.logo">${L ? btn('Remove', { v: 'danger-ghost', sm: true, act: 'removeCommunityLogo' }) : ''}</div></div>
     ${L ? `<div class="field"><span class="label">Background behind the logo</span><div class="segmented" role="radiogroup" aria-label="Logo background">${[['auto', `Automatic (${L.tone === 'light' ? 'dark' : 'light'})`], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<label><input type="radio" name="clogo-bg" value="${v}" data-change="communityLogoBg" ${(L.bg || 'auto') === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div><span class="hint">White logos get a dark background automatically. Change it if your logo is hard to see.</span></div>` : ''}
-    <div class="field"><span class="label">Where contractors see it</span><div class="row" style="gap:16px;align-items:center"><div class="side-community" style="width:240px">${logoTile(L, c.name, 'md')}<div><b>${esc(c.name)}</b><span>${esc(c.area)}</span></div></div><span class="small muted">Sidebar, community dropdown and the community list.</span></div></div>`,
+    <div class="field"><span class="label">Where contractors see it</span><div class="row" style="gap:16px;align-items:center"><div class="side-brand preview">${logoTile(L, c.name, 'brand')}</div><span class="small muted">Top of the sidebar, the community dropdown and the community list.</span></div></div>`,
     { sub: 'PNG, JPG, SVG or WebP. Transparent PNGs work best, in any shape and colour.' })}
   ${card('Contact details', `<dl class="dl"><dt>Community name</dt><dd>${esc(c.name)}</dd><dt>Area</dt><dd>${esc(c.area)}</dd><dt>Contractor support email</dt><dd class="mono">${esc(c.email || 'Not set')}</dd></dl>`)}`;
 }
