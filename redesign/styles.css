@@ -701,3 +701,7 @@ button.select-row:disabled { cursor: not-allowed; }
   .switcher .name-row .role-pill { display: none; }
   .switcher .role-mini { display: inline; color: var(--warn); }
 }
+.switcher.static { cursor: default; }
+.switcher.static:hover { border-color: var(--border); background: var(--surface); }
+.readonly-field { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 4px 12px 4px 6px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface-2); }
+.readonly-field b { font-weight: 600; }

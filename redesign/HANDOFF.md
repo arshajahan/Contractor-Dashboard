@@ -20,7 +20,7 @@ Files:
 ## Navigation (kept from the live portal)
 
 Passes: Overview, Authorized passes, Request pass · Resources: Employees, Vehicles, Settings · Support: Help & contact.
-Community picker is now a **searchable dropdown** in the top bar (with "Request access" and "Manage communities").
+The community is chosen on the main Buzzin dashboard before entering this portal. Here it is a **static label** in the top bar (logo, name and a Contractor tag). The account menu has **Back to main dashboard** for choosing another community. Searchable dropdowns are still used for long lists such as units.
 
 ## Settings: every live field is kept
 
@@ -51,7 +51,7 @@ New settings sections: Company documents (insurance, VAT certificate… with exp
 | people, addPerson | Employees + Add/Edit employee popup |
 | vehicles, addVehicle | Vehicles + Add/Edit vehicle popup |
 | settings, password | Settings (see above) |
-| community | Community dropdown in the top bar |
+| community | Static community label in the top bar (chosen on the main dashboard) |
 | help, completion, visitor, menu | Help & contact, Final inspection, Visitor pass, mobile "More" drawer |
 
 ## Community terms PDF (new)
@@ -77,7 +77,7 @@ Implementation notes: store each form's PDF, field positions as % of page size, 
 
 ## Account type
 
-- The community dropdown in the top bar shows a **Contractor** tag next to the community name (**Admin** on the community admin side). On phones it moves to the small "Community" line so the name stays readable.
+- The community label in the top bar shows a **Contractor** tag next to the community name (**Admin** on the community admin side). On phones it moves to the small "Community" line so the name stays readable.
 
 ## Company logo
 
@@ -89,7 +89,7 @@ Implementation notes: store each form's PDF, field positions as % of page size, 
 ## Community logo (co-branding)
 
 - Each community has its own logo, uploaded by community staff on the admin side under **Community profile**. The same rules apply as for company logos: any image type, shown contained, automatic light or dark background, with an override.
-- Contractors see it at the top of the sidebar, as the logo only with no Buzzin wordmark and no name, because the name is in the top bar. It also shows in the community dropdown in the top bar and in the community list. It changes when they switch community.
+- Contractors see it at the top of the sidebar, as the logo only with no Buzzin wordmark and no name, because the name is in the top bar. It also shows in the top bar community label and in Settings › Communities.
 - Communities without a logo show their initials.
 
 ## Expiry rule

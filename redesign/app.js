@@ -214,6 +214,8 @@ let S = null;
 try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
 if (!S || S.v !== 3) S = seed();
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { if (e && e.name === 'QuotaExceededError') toast('This browser is out of space for the preview. Use a smaller PDF.', { err: true }); return false; } };
+// Save the starting sample data so the preview behaves like stored data from the first load.
+(() => { try { if (!localStorage.getItem(KEY)) persist(); } catch (e) { /* storage blocked: preview still works */ } })();
 const ui = { pop: null, popRect: null, q: {}, modal: null, drawer: false, tab: 'all', search: {}, filters: {}, errs: {}, form: null, formTab: null, dirty: false, formErr: {}, signMode: 'draw', page: 1, pw: { current: '', next: '', confirm: '', show: false }, theme: null };
 try { ui.theme = localStorage.getItem('buzzin-theme'); } catch (e) { /* ignore */ }
 const applyTheme = () => { if (ui.theme) document.documentElement.setAttribute('data-theme', ui.theme); else document.documentElement.removeAttribute('data-theme'); };
@@ -356,33 +358,19 @@ function sidebar(r) {
     <p class="preview-note">Design preview · sample data only</p>
   </div>`;
 }
-function communitySwitcher() {
-  const c = community();
-  const open = ui.pop === 'community';
-  const q = (ui.q.community || '').toLowerCase();
-  const list = S.communities.filter(x => !q || (x.name + x.area).toLowerCase().includes(q));
-  return `<div class="pop-anchor">
-    <button class="switcher" data-pop="community" aria-haspopup="listbox" aria-expanded="${open}" aria-label="Community: ${esc(c.name)}. Change community">
-      ${logoTile(c.logo, c.name, 'xs')}<span class="txt"><small>Community<span class="role-mini"> · ${route().startsWith('admin') ? 'Admin' : 'Contractor'}</span></small><span class="name-row"><b>${esc(c.name)}</b><span class="role-pill">${route().startsWith('admin') ? 'Admin' : 'Contractor'}</span></span></span>${ic('down', 'chev')}
-    </button>
-    ${open ? `<div class="popover wide" role="dialog" aria-label="Choose a community">
-      <div class="pop-search">${ic('search')}<input id="community-q" data-q="community" placeholder="Search communities" value="${esc(ui.q.community || '')}" autocomplete="off"></div>
-      <div class="pop-head"><span class="eyebrow">Your communities</span><span class="xs faint">${S.communities.filter(x => x.status === 'active').length} active</span></div>
-      <div class="pop-list" id="community-list">${list.length ? list.map(x => `<button class="pop-item" data-act="switchCommunity" data-id="${x.id}" aria-selected="${x.id === c.id}" ${x.status !== 'active' ? 'disabled' : ''}>
-        ${logoTile(x.logo, x.name, 'xs')}
-        <span class="grow">${esc(x.name)}<small>${esc(x.area)}${x.status === 'pending' ? ' · Access pending approval' : ''}</small></span>${x.id === c.id ? ic('check', 'tick') : ''}</button>`).join('') : `<div class="pop-empty">No community matches “${esc(ui.q.community)}”</div>`}</div>
-      <div class="pop-sep"></div>
-      <button class="pop-item" data-act="requestAccess">${ic('plus')}<span class="grow">Request access to a community</span></button>
-      <button class="pop-item" data-go="settings-communities">${ic('gear')}<span class="grow">Manage communities</span></button>
-    </div>` : ''}
-  </div>`;
+// The community is chosen on the main Buzzin dashboard before entering this portal, so it is shown, not switched, here.
+function communityHeader() {
+  const c = community(), role = route().startsWith('admin') ? 'Admin' : 'Contractor';
+  return `<div class="switcher static" aria-label="Community: ${esc(c.name)}, ${role} account">
+      ${logoTile(c.logo, c.name, 'xs')}<span class="txt"><small>Community<span class="role-mini"> · ${role}</span></small><span class="name-row"><b>${esc(c.name)}</b><span class="role-pill">${role}</span></span></span>
+    </div>`;
 }
 function topbar() {
   const unread = S.notifications.filter(n => n.unread).length;
   const themeIcon = (ui.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark' ? 'sun' : 'moon';
   return `<header class="topbar">
     ${btn('', { icon: 'menu', v: 'ghost', act: 'openDrawer', title: 'Open menu', cls: 'menu-toggle' })}
-    ${communitySwitcher()}
+    ${communityHeader()}
     <span class="spacer"></span>
     ${route().startsWith('admin') ? `<span class="badge badge-brand hide-sm"><i></i>Community admin view</span>` : btn('Request pass', { v: 'primary', sm: true, icon: 'plus', go: 'type', cls: 'hide-sm' })}
     ${btn('', { icon: themeIcon, v: 'ghost', act: 'toggleTheme', title: 'Switch light or dark theme', cls: 'hide-sm' })}
@@ -396,6 +384,7 @@ function topbar() {
         <button class="pop-item" data-go="settings-profile">${ic('user')}<span class="grow">My profile</span></button>
         <button class="pop-item" data-go="settings">${ic('briefcase')}<span class="grow">Company settings</span></button>
         <button class="pop-item" data-go="settings-security">${ic('lock')}<span class="grow">Password & security</span></button>
+        <button class="pop-item" data-act="mainDashboard">${ic('layers')}<span class="grow">Back to main dashboard<small>Choose a different community</small></span></button>
         <button class="pop-item" data-go="admin-forms">${ic('building')}<span class="grow">Community admin view<small>Design preview</small></span></button>
         <button class="pop-item" data-act="toggleTheme">${ic(themeIcon)}<span class="grow">Switch theme</span></button>
         <div class="pop-sep"></div><button class="pop-item danger" data-act="signOut">${ic('logout')}<span class="grow">Sign out</span></button></div>` : ''}
@@ -659,7 +648,7 @@ function pDetails() {
   const t = typeOf(d.type);
   return wizard('details', `
   ${card('Location', `<div class="grid-2">
-    ${combo({ id: 'f-community', label: 'Community', req: true, bind: 'd.community', options: S.communities.filter(c => c.status === 'active').map(c => ({ value: c.id, label: c.name, meta: c.area })), searchPh: 'Search communities', err: E('community') })}
+    <div class="field"><span class="label">Community</span><div class="readonly-field">${logoTile(community().logo, community().name, 'xs')}<b>${esc(community().name)}</b></div><span class="hint">Chosen on the main dashboard.</span></div>
     ${F({ id: 'f-property', label: 'Building', req: true, bind: 'd.property', options: PROPERTIES, ph: 'Choose a building', err: E('property') })}
     ${combo({ id: 'f-units', label: 'Units', req: true, bind: 'd.units', options: UNITS.map(u => ({ value: u, label: u })), ph: 'Search and select units', searchPh: 'Search units', full: true, err: E('units'), hint: 'Add more than one unit only if the same work happens in each.' })}
   </div>`)}
@@ -954,7 +943,7 @@ function pAdminProfile() {
   return `${pageHead('Community profile', 'How your community appears to contractors in the Buzzin portal.')}
   ${card('Logo', `<div class="logo-up">${logoTile(L, c.name, 'lg')}<div class="row"><label class="btn btn-secondary btn-sm" for="community-logo-up">${ic('upload')}${L ? 'Replace logo' : 'Upload logo'}</label><input class="file-input" id="community-logo-up" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp,.png,.jpg,.jpeg,.svg,.webp" data-file="community.logo">${L ? btn('Remove', { v: 'danger-ghost', sm: true, act: 'removeCommunityLogo' }) : ''}</div></div>
     ${L ? `<div class="field"><span class="label">Background behind the logo</span><div class="segmented" role="radiogroup" aria-label="Logo background">${[['auto', `Automatic (${L.tone === 'light' ? 'dark' : 'light'})`], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<label><input type="radio" name="clogo-bg" value="${v}" data-change="communityLogoBg" ${(L.bg || 'auto') === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div><span class="hint">White logos get a dark background automatically. Change it if your logo is hard to see.</span></div>` : ''}
-    <div class="field"><span class="label">Where contractors see it</span><div class="row" style="gap:16px;align-items:center"><div class="side-brand preview">${logoTile(L, c.name, 'brand')}</div><span class="small muted">Top of the sidebar, the community dropdown and the community list.</span></div></div>`,
+    <div class="field"><span class="label">Where contractors see it</span><div class="row" style="gap:16px;align-items:center"><div class="side-brand preview">${logoTile(L, c.name, 'brand')}</div><span class="small muted">Top of the sidebar and the community label in the top bar.</span></div></div>`,
     { sub: 'PNG, JPG, SVG or WebP. Transparent PNGs work best, in any shape and colour.' })}
   ${card('Contact details', `<dl class="dl"><dt>Community name</dt><dd>${esc(c.name)}</dd><dt>Area</dt><dd>${esc(c.area)}</dd><dt>Contractor support email</dt><dd class="mono">${esc(c.email || 'Not set')}</dd></dl>`)}`;
 }
@@ -1205,8 +1194,8 @@ function setDocuments() {
     { raw: true, sub: 'Upload once and reuse: choose these on any permit instead of uploading again. Communities can see them, and we remind you before they expire.', action: btn('Add document', { v: 'primary', sm: true, icon: 'plus', act: 'addCompanyDoc' }) });
 }
 function setCommunities() {
-  return card('Communities', S.communities.map(c => `<div class="list-row"><span class="avatar" style="border-radius:8px">${initials(c.name)}</span><span class="grow"><b>${esc(c.name)} ${c.id === S.community ? badge('Current', 'brand') : ''}</b><span>${esc(c.area)} · ${c.status === 'active' ? 'Access since ' + fmt(c.since) : 'Request sent · Waiting for approval'}</span></span>${c.status === 'active' ? `${c.id !== S.community ? btn('Switch', { v: 'ghost', sm: true, act: 'switchCommunity', id: c.id }) : ''}${btn('Leave', { v: 'danger-ghost', sm: true, act: 'leaveCommunity', id: c.id })}` : `${badge('Pending', 'info')}${btn('Withdraw', { v: 'ghost', sm: true, act: 'withdrawAccess', id: c.id })}`}</div>`).join(''),
-    { tight: true, sub: 'Communities where your company can request passes.', action: btn('Request access', { v: 'primary', sm: true, icon: 'plus', act: 'requestAccess' }) });
+  return card('Communities', S.communities.map(c => `<div class="list-row"><span class="avatar" style="border-radius:8px">${initials(c.name)}</span><span class="grow"><b>${esc(c.name)} ${c.id === S.community ? badge('Current', 'brand') : ''}</b><span>${esc(c.area)} · ${c.status === 'active' ? 'Access since ' + fmt(c.since) : 'Request sent · Waiting for approval'}</span></span>${c.status === 'active' ? `${btn('Leave', { v: 'danger-ghost', sm: true, act: 'leaveCommunity', id: c.id })}` : `${badge('Pending', 'info')}${btn('Withdraw', { v: 'ghost', sm: true, act: 'withdrawAccess', id: c.id })}`}</div>`).join(''),
+    { tight: true, sub: 'Communities where your company can request passes. To work in a different one, choose it on the main Buzzin dashboard.', action: btn('Request access', { v: 'primary', sm: true, icon: 'plus', act: 'requestAccess' }) });
 }
 function setNotifications() {
   const rows = [['submitted', 'Request submitted', 'Confirmation when a pass is sent'], ['changes', 'Changes requested', 'The community needs something from you'], ['approved', 'Pass approved or rejected', 'Decision on your request'], ['expiring', 'Documents expiring', 'IDs, registrations and company documents, 30 days ahead'], ['inspection', 'Final inspection', 'Inspection booked or completed'], ['news', 'Product news', 'New features and tips']];
@@ -1316,7 +1305,7 @@ const LEGACY = { community: 'home', unit: 'details', filters: 'permits', addMate
 function handleLegacy(r) {
   if (!LEGACY[r]) return false;
   closeAll();
-  const after = { community: () => { ui.pop = 'community'; }, filters: () => { ui.modal = { type: 'filters', data: clone(ui.filters) }; }, addMaterial: () => ACT.addMaterial(), sign: () => ACT.openSign(), validation: () => { ui.errs.details = true; }, menu: () => { ui.modal = { type: 'drawer', data: {} }; }, permitChecklist: () => { ui.modal = { type: 'checklist', data: { type: S.draft ? S.draft.type : 'general' } }; }, addPerson: () => ACT.addPerson(), addVehicle: () => ACT.addVehicle(), unit: () => { ui.pop = 'combo:f-units'; } }[r];
+  const after = { filters: () => { ui.modal = { type: 'filters', data: clone(ui.filters) }; }, addMaterial: () => ACT.addMaterial(), sign: () => ACT.openSign(), validation: () => { ui.errs.details = true; }, menu: () => { ui.modal = { type: 'drawer', data: {} }; }, permitChecklist: () => { ui.modal = { type: 'checklist', data: { type: S.draft ? S.draft.type : 'general' } }; }, addPerson: () => ACT.addPerson(), addVehicle: () => ACT.addVehicle(), unit: () => { ui.pop = 'combo:f-units'; } }[r];
   if (STEPS.some(s => s[0] === LEGACY[r]) && !S.draft) S.draft = blankDraft();
   history.replaceState(null, '', '#' + LEGACY[r]);
   current = LEGACY[r];
@@ -1387,10 +1376,6 @@ function setupCanvas() {
 /* ================= Actions ================= */
 let current = route();
 const closeAll = () => { ui.pop = null; ui.modal = null; };
-function guardCommunity(fn) {
-  if (STEPS.some(s => s[0] === route())) openConfirm({ title: 'Leave this request?', message: 'Your draft is saved. You can continue it from the Overview after switching back to this community.', confirmText: 'Switch community', tone: 'warn', onConfirm: fn });
-  else fn();
-}
 function wzGo(step) { ui.errs[step] = false; go(step); window.scrollTo(0, 0); }
 function persistDraft() { if (S.draft) S.draft.saved = TODAY; persist(); const s = document.getElementById('save-state'); if (s) { s.innerHTML = `${ic('refresh')}Saving…`; clearTimeout(persistDraft.t); persistDraft.t = setTimeout(() => { s.innerHTML = `${ic('check')}Draft saved`; }, 500); } }
 const ACT = {
@@ -1402,7 +1387,6 @@ const ACT = {
   readAll() { S.notifications.forEach(n => { n.unread = false; }); persist(); render(); },
   openNotif(t) { const n = S.notifications.find(x => x.id === t.dataset.id); n.unread = false; persist(); ui.pop = null; go(n.go); },
   signOut() { openConfirm({ title: 'Sign out?', message: 'Any draft is saved. You will need your email and password to sign in again.', confirmText: 'Sign out', icon: 'logout', tone: 'warn', onConfirm: () => toast('Signed out. This preview keeps you on the page.') }); },
-  switchCommunity(t) { const c = S.communities.find(x => x.id === t.dataset.id); if (!c || c.id === S.community) { ui.pop = null; render(); return; } ui.pop = null; guardCommunity(() => { S.community = c.id; ui.tab = 'all'; persist(); toast(`Switched to ${c.name}`); go('home'); }); },
   requestAccess() { ui.pop = null; ui.modal = { type: 'access', data: { community: '', message: '' } }; render(); },
   sendAccess() { const m = ui.modal; if (!m.data.community) { m.errs = { community: 'Choose a community.' }; render(); return; } openConfirm({ title: 'Send access request?', message: `${m.data.community} will see your company details and documents.`, confirmText: 'Send request', icon: 'send', onConfirm: () => { S.communities.push({ id: uid('c'), name: m.data.community, area: 'Dubai', status: 'pending', since: null, email: '' }); S.directory = S.directory.filter(x => x !== m.data.community); persist(); toast(`Access requested from ${m.data.community}`); } }); },
   withdrawAccess(t) { const c = S.communities.find(x => x.id === t.dataset.id); openConfirm({ title: `Withdraw request to ${c.name}?`, message: 'You can request access again later.', confirmText: 'Withdraw', tone: 'danger', icon: 'x', onConfirm: () => { S.communities = S.communities.filter(x => x !== c); S.directory.push(c.name); persist(); toast('Request withdrawn'); } }); },
@@ -1586,6 +1570,7 @@ const ACT = {
     } });
     if (inModal) { ui.modal.onCancel = prev; }
   },
+  mainDashboard() { ui.pop = null; render(); toast('Opens the main Buzzin dashboard, where you choose a community. Not part of this preview.'); },
   pickCompanyDoc(t) { ui.modal = { type: 'pickDoc', data: { key: t.dataset.id } }; render(); },
   useCompanyDoc(t) {
     const k = ui.modal.data.key, c = companyDocList().find(x => x.id === t.dataset.id), d = S.draft;
