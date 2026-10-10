@@ -348,7 +348,6 @@ function navKey(r) {
   if (r.startsWith('permit-') || r.startsWith('completion') || r === 'permits') return 'permits';
   if (r === 'type' || r === 'visitor' || r.startsWith('submitted') || STEPS.some(s => s[0] === r)) return 'type';
   if (r.startsWith('settings')) return 'settings';
-  if (r.startsWith('admin')) return 'admin';
   return r;
 }
 function sidebar(r) {
@@ -362,21 +361,37 @@ function sidebar(r) {
     <p class="preview-note">Design preview · sample data only</p>
   </div>`;
 }
-// The community is chosen on the main Buzzin dashboard before entering this portal, so it is shown, not switched, here.
-function communityHeader() {
-  const c = community(), role = route().startsWith('admin') ? 'Admin' : 'Contractor';
-  return `<div class="switcher static" aria-label="Community: ${esc(c.name)}, ${role} account">
-      ${logoTile(c.logo, c.name, 'xs')}<span class="txt"><small>Community<span class="role-mini"> · ${role}</span></small><span class="name-row"><b>${esc(c.name)}</b><span class="role-pill">${role}</span></span></span>
-    </div>`;
+function communityCard() {
+  const c = community();
+  // Community logo only: the community name is already shown in the top bar.
+  return `<div class="side-brand">${logoTile(c.logo, c.name, 'brand')}</div>`;
+}
+// Switching community is one click from the top bar. Only communities with active access can be opened.
+function communitySwitcher() {
+  const c = community(), open = ui.pop === 'community', q = (ui.q.community || '').toLowerCase();
+  const list = S.communities.filter(x => !q || (x.name + ' ' + x.area).toLowerCase().includes(q)).sort((a, b) => (b.status === 'active') - (a.status === 'active'));
+  return `<div class="pop-anchor">
+    <button class="switcher" data-pop="community" aria-haspopup="listbox" aria-expanded="${open}" aria-label="Community: ${esc(c.name)}, contractor account. Change community">
+      ${logoTile(c.logo, c.name, 'xs')}<span class="txt"><small>Community<span class="role-mini"> · Contractor</span></small><span class="name-row"><b>${esc(c.name)}</b><span class="role-pill">Contractor</span></span></span>${ic('down', 'chev')}
+    </button>
+    ${open ? `<div class="popover wide" role="dialog" aria-label="Switch community">
+      <div class="pop-search">${ic('search')}<input id="community-q" data-q="community" placeholder="Search communities" value="${esc(ui.q.community || '')}" autocomplete="off"></div>
+      <div class="pop-head"><span class="eyebrow">Your communities</span><span class="xs faint">${S.communities.filter(x => x.status === 'active').length} active</span></div>
+      <div class="pop-list" id="community-list">${list.length ? list.map(x => { const ok = x.status === 'active'; return `<button class="pop-item" ${ok ? `data-act="switchCommunity" data-id="${x.id}"` : 'disabled'} aria-selected="${x.id === c.id}">${logoTile(x.logo, x.name, 'xs')}<span class="grow">${esc(x.name)}<small>${ok ? esc(x.area) : ACCESS[x.status][0]}</small></span>${x.id === c.id && ok ? ic('check', 'tick') : ''}</button>`; }).join('') : `<div class="pop-empty">No community matches “${esc(ui.q.community)}”</div>`}</div>
+      <div class="pop-sep"></div>
+      <button class="pop-item" data-act="requestAccess">${ic('plus')}<span class="grow">Request access to a community</span></button>
+      <button class="pop-item" data-go="communities">${ic('layers')}<span class="grow">See all communities</span></button>
+    </div>` : ''}
+  </div>`;
 }
 function topbar() {
   const unread = S.notifications.filter(n => n.unread).length;
   const themeIcon = (ui.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark' ? 'sun' : 'moon';
   return `<header class="topbar">
     ${btn('', { icon: 'menu', v: 'ghost', act: 'openDrawer', title: 'Open menu', cls: 'menu-toggle' })}
-    ${communityHeader()}
+    ${communitySwitcher()}
     <span class="spacer"></span>
-    ${route().startsWith('admin') ? `<span class="badge badge-brand hide-sm"><i></i>Community admin view</span>` : community().status !== 'active' ? '' : btn('Request pass', { v: 'primary', sm: true, icon: 'plus', go: 'type', cls: 'hide-sm' })}
+    ${community().status !== 'active' ? '' : btn('Request pass', { v: 'primary', sm: true, icon: 'plus', go: 'type', cls: 'hide-sm' })}
     ${btn('', { icon: themeIcon, v: 'ghost', act: 'toggleTheme', title: 'Switch light or dark theme', cls: 'hide-sm' })}
     <div class="pop-anchor">
       <button class="btn btn-ghost btn-icon bell" data-pop="notif" aria-label="Notifications${unread ? `, ${unread} unread` : ''}">${ic('bell')}${unread ? '<span class="dot"></span>' : ''}</button>
@@ -388,8 +403,7 @@ function topbar() {
         <button class="pop-item" data-go="settings-profile">${ic('user')}<span class="grow">My profile</span></button>
         <button class="pop-item" data-go="settings">${ic('briefcase')}<span class="grow">Company settings</span></button>
         <button class="pop-item" data-go="settings-security">${ic('lock')}<span class="grow">Password & security</span></button>
-        <button class="pop-item" data-act="mainDashboard">${ic('layers')}<span class="grow">Back to main dashboard<small>Choose a different community</small></span></button>
-        <button class="pop-item" data-go="admin-forms">${ic('building')}<span class="grow">Community admin view<small>Design preview</small></span></button>
+        <button class="pop-item" data-go="communities">${ic('layers')}<span class="grow">All communities</span></button>
         <button class="pop-item" data-act="toggleTheme">${ic(themeIcon)}<span class="grow">Switch theme</span></button>
         <div class="pop-sep"></div><button class="pop-item danger" data-act="signOut">${ic('logout')}<span class="grow">Sign out</span></button></div>` : ''}
     </div>
@@ -653,7 +667,7 @@ function pDetails() {
   const t = typeOf(d.type);
   return wizard('details', `
   ${card('Location', `<div class="grid-2">
-    <div class="field"><span class="label">Community</span><div class="readonly-field">${logoTile(community().logo, community().name, 'xs')}<b>${esc(community().name)}</b></div><span class="hint">Chosen on the main dashboard.</span></div>
+    <div class="field"><span class="label">Community</span><div class="readonly-field">${logoTile(community().logo, community().name, 'xs')}<b>${esc(community().name)}</b></div><span class="hint">To request for another community, switch it from the top bar.</span></div>
     ${F({ id: 'f-property', label: 'Building', req: true, bind: 'd.property', options: PROPERTIES, ph: 'Choose a building', err: E('property') })}
     ${combo({ id: 'f-units', label: 'Units', req: true, bind: 'd.units', options: UNITS.map(u => ({ value: u, label: u })), ph: 'Search and select units', searchPh: 'Search units', full: true, err: E('units'), hint: 'Add more than one unit only if the same work happens in each.' })}
   </div>`)}
@@ -797,23 +811,22 @@ function docState(key, pdf) {
   if (r.error) return alertBox('bad', 'This document could not be shown', esc(r.error) + ' Download the original instead.');
   return `<div class="pdf-loading">${ic('file')}<span>Loading document…</span></div>`;
 }
-function sigPreview(placement, signer, admin) {
+function sigPreview(placement, signer) {
   const A = SIG_AREA[placement], g = signer || {};
   const style = `left:${A.left}%;top:${A.top}%;width:${A.width}%;height:${A.height}%`;
-  if (admin || !g.sig) return `<div class="pdf-sig" style="${style}"><span class="ph">${admin ? 'Signature block: company, name, position, date and signature are added here' : 'Your name, position and signature are added here when you sign'}</span></div>`;
+  if (!g.sig) return `<div class="pdf-sig" style="${style}"><span class="ph">Your name, position and signature are added here when you sign</span></div>`;
   return `<div class="pdf-sig signed" style="${style}"><div class="lines">${[['Company', S.company.name], ['Name', g.name], ['Position', g.position], ['Date', fmt(TODAY)]].map(([k, v]) => `<span><i>${k}</i><b>${esc(v || '—')}</b></span>`).join('')}</div><img src="${g.sig.data}" alt="Signature"></div>`;
 }
 function boxHtml(f, o, n) {
   const style = `left:${f.x}%;top:${f.y}%;width:${f.size}%`;
-  if (o.admin) return `<button type="button" class="pdf-box admin ${o.sel === f.id ? 'sel' : ''}" data-box="${f.id}" style="${style}" aria-label="Tick box ${n}: ${esc(f.label)}"><span class="pdf-box-n">${n}</span></button>`;
   const on = !!(o.ticks && o.ticks[f.id]);
   return `<button type="button" class="pdf-box ${on ? 'on' : ''} ${o.showErr && f.required && !on ? 'err' : ''}" role="checkbox" aria-checked="${on}" aria-label="${esc(f.label)}" title="${esc(f.label)}" data-act="tickBox" data-form="${o.formKey}" data-id="${f.id}" id="box-${o.formKey.replace(/\W/g, '')}-${f.id}" style="${style}">${ic('check')}</button>`;
 }
 function pdfDoc(pages, fields, o) {
   const n = pages.length + (o.placement === 'newpage' ? 1 : 0);
-  const page = (pg, i) => `<div class="pdf-page" style="aspect-ratio:${pg.w}/${pg.h}" ${o.admin ? `data-admin-page="${i + 1}"` : ''}><img src="${pg.src}" alt="Page ${i + 1} of ${n}" draggable="false">${fields.filter(f => f.page === i + 1).map(f => boxHtml(f, o, fields.indexOf(f) + 1)).join('')}${o.placement === 'bottom' && i === pages.length - 1 ? sigPreview('bottom', o.signer, o.admin) : ''}<span class="pdf-pno">${i + 1} / ${n}</span></div>`;
-  const extra = o.placement === 'newpage' ? `<div class="pdf-page blank" style="aspect-ratio:${pages[0].w}/${pages[0].h}"><div class="pdf-newpage-head"><b>Contractor declaration</b><span>Signed for and on behalf of the contractor. Completed electronically through the Buzzin contractor portal.</span></div>${sigPreview('newpage', o.signer, o.admin)}<span class="pdf-pno">${n} / ${n}</span></div>` : '';
-  return `<div class="pdf-doc ${o.admin ? 'admin' : ''}">${pages.map(page).join('')}${extra}</div>`;
+  const page = (pg, i) => `<div class="pdf-page" style="aspect-ratio:${pg.w}/${pg.h}"><img src="${pg.src}" alt="Page ${i + 1} of ${n}" draggable="false">${fields.filter(f => f.page === i + 1).map(f => boxHtml(f, o, fields.indexOf(f) + 1)).join('')}${o.placement === 'bottom' && i === pages.length - 1 ? sigPreview('bottom', o.signer) : ''}<span class="pdf-pno">${i + 1} / ${n}</span></div>`;
+  const extra = o.placement === 'newpage' ? `<div class="pdf-page blank" style="aspect-ratio:${pages[0].w}/${pages[0].h}"><div class="pdf-newpage-head"><b>Contractor declaration</b><span>Signed for and on behalf of the contractor. Completed electronically through the Buzzin contractor portal.</span></div>${sigPreview('newpage', o.signer)}<span class="pdf-pno">${n} / ${n}</span></div>` : '';
+  return `<div class="pdf-doc">${pages.map(page).join('')}${extra}</div>`;
 }
 
 /* Documents close to expiry warn but never block. Only expired documents block. */
@@ -937,72 +950,7 @@ function saveBytes(bytes, name) {
   const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
-async function readPdf(file) {
-  if (!file) return null;
-  if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') throw new Error('Choose a PDF file.');
-  if (file.size > 4 * 1048576) throw new Error('This PDF is larger than 4 MB. Choose a smaller file for this preview.');
-  const u = new Uint8Array(await file.arrayBuffer());
-  if (String.fromCharCode(u[0], u[1], u[2], u[3]) !== '%PDF') throw new Error('This file is not a valid PDF.');
-  return { pdf: bytesToB64(u), fileName: file.name, size: file.size };
-}
 
-/* ================= Community admin (design preview) ================= */
-const pubSubset = x => ({ name: x.name, pdf: x.pdf, fields: x.fields, appliesTo: [...x.appliesTo].sort(), placement: x.placement });
-function formStatus(f) {
-  if (!f.published) return ['Not published', 'neutral'];
-  return JSON.stringify(pubSubset(f)) === JSON.stringify(pubSubset(f.published)) ? [`Published · v${f.published.version}`, 'ok'] : ['Unpublished changes', 'warn'];
-}
-const curAdminForm = () => S.forms.find(x => x.id === route().slice(11));
-function communityCard() {
-  const c = community();
-  // Community logo only: the community name is already shown in the top bar.
-  return `<div class="side-brand">${logoTile(c.logo, c.name, 'brand')}</div>`;
-}
-function adminSidebar() {
-  const r = route();
-  return `${communityCard()}
-  <nav class="side-nav" aria-label="Admin"><div class="side-label">Manage</div>${[['admin-forms', 'Permit forms', 'file'], ['admin-profile', 'Community profile', 'building']].map(([k, l, i]) => { const on = k === 'admin-forms' ? r.startsWith('admin-form') : r === k; return `<button class="nav-item ${on ? 'active' : ''}" data-go="${k}" ${on ? 'aria-current="page"' : ''}>${ic(i)}<span>${l}</span></button>`; }).join('')}</nav>
-  <div class="side-foot"><div class="side-help"><strong>Community admin view</strong><p>Design preview of the side community staff use. In the live product it has its own login.</p>${btn('Back to contractor portal', { go: 'home', sm: true, icon: 'arrowL' })}</div></div>`;
-}
-function pAdminProfile() {
-  const c = community(), L = c.logo;
-  return `${pageHead('Community profile', 'How your community appears to contractors in the Buzzin portal.')}
-  ${card('Logo', `<div class="logo-up">${logoTile(L, c.name, 'lg')}<div class="row"><label class="btn btn-secondary btn-sm" for="community-logo-up">${ic('upload')}${L ? 'Replace logo' : 'Upload logo'}</label><input class="file-input" id="community-logo-up" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp,.png,.jpg,.jpeg,.svg,.webp" data-file="community.logo">${L ? btn('Remove', { v: 'danger-ghost', sm: true, act: 'removeCommunityLogo' }) : ''}</div></div>
-    ${L ? `<div class="field"><span class="label">Background behind the logo</span><div class="segmented" role="radiogroup" aria-label="Logo background">${[['auto', `Automatic (${L.tone === 'light' ? 'dark' : 'light'})`], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<label><input type="radio" name="clogo-bg" value="${v}" data-change="communityLogoBg" ${(L.bg || 'auto') === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div><span class="hint">White logos get a dark background automatically. Change it if your logo is hard to see.</span></div>` : ''}
-    <div class="field"><span class="label">Where contractors see it</span><div class="row" style="gap:16px;align-items:center"><div class="side-brand preview">${logoTile(L, c.name, 'brand')}</div><span class="small muted">Top of the sidebar and the community label in the top bar.</span></div></div>`,
-    { sub: 'PNG, JPG, SVG or WebP. Transparent PNGs work best, in any shape and colour.' })}
-  ${card('Contact details', `<dl class="dl"><dt>Community name</dt><dd>${esc(c.name)}</dd><dt>Area</dt><dd>${esc(c.area)}</dd><dt>Contractor support email</dt><dd class="mono">${esc(c.email || 'Not set')}</dd></dl>`)}`;
-}
-function pAdminForms() {
-  const list = S.forms.filter(f => f.community === S.community);
-  return `${pageHead('Permit forms', `Documents contractors read and sign before ${esc(community().name)} reviews a work permit.`, btn('Upload PDF form', { v: 'primary', icon: 'upload', act: 'adminNewForm' }))}
-  ${alertBox('info', 'How it works', 'Upload your terms or guidelines as a PDF. Click next to each clause to place a tick box, choose which permit types need it, then publish. Contractors tick every box, enter their name and position, and draw or upload a signature. It is stamped with the date at the bottom of the document.')}
-  ${list.length ? card('', `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Form</th><th>Required for</th><th>Tick boxes</th><th>Status</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${list.map(f => { const [l, t] = formStatus(f); return `<tr class="clickable" data-go="admin-form-${f.id}"><td><div class="t-main"><b>${esc(f.name)}</b><span>${esc(f.fileName)} · Updated ${fmt(f.updated)}</span></div></td><td data-m="sub">${f.appliesTo.length === PERMIT_TYPES.length ? 'All work permits' : f.appliesTo.map(id => typeOf(id).name).join(', ') || 'None'}</td><td data-m="hide" class="num">${f.fields.length}</td><td data-m="side">${badge(l, t)}</td><td class="t-actions">${btn('Edit', { v: 'ghost', sm: true, go: 'admin-form-' + f.id })}${btn('', { v: 'ghost', sm: true, icon: 'trash', act: 'adminDeleteForm', id: f.id, title: 'Delete ' + f.name })}</td></tr>`; }).join('')}</tbody></table></div>`, { raw: true })
-    : card('', emptyState('file', 'No forms yet', 'Upload your contractor terms as a PDF to get started.', btn('Upload PDF form', { v: 'primary', sm: true, icon: 'upload', act: 'adminNewForm' })))}`;
-}
-function pAdminForm(id) {
-  const f = S.forms.find(x => x.id === id);
-  if (!f) return pageHead('Form not found', 'It may have been deleted.', btn('Back to forms', { go: 'admin-forms' }));
-  const [sl, st] = formStatus(f), sel = f.fields.find(x => x.id === ui.adminSel), key = `admin:${f.id}:${f.pdfRev || 0}`, r = pdfPages(key, f.pdf), mode = ui.adminMode || 'add';
-  return `${pageHead(`${esc(f.name)} ${badge(sl, st)}`, `${esc(f.fileName)} · ${plural(f.fields.length, 'tick box', 'tick boxes')}`, btn('Replace PDF', { icon: 'refresh', act: 'adminReplace', id: f.id }) + `<input class="file-input" type="file" id="admin-replace" accept="application/pdf,.pdf" data-adminpdf="${f.id}">` + btn(f.published ? 'Publish changes' : 'Publish', { v: 'primary', icon: 'send', act: 'adminPublish', id: f.id }), [['Permit forms', 'admin-forms'], [f.name]])}
-  <div class="layout-main admin-editor">
-    <section class="card">
-      <div class="toolbar"><div class="segmented" role="radiogroup" aria-label="Editing mode">${[['add', 'Add tick box'], ['move', 'Select & move']].map(([k, l]) => `<label><input type="radio" name="amode" value="${k}" data-change="adminMode" ${mode === k ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div><span class="small muted">${mode === 'add' ? 'Click next to a clause to place a tick box. Drag a box to move it.' : 'Drag a tick box to move it. Click one to edit it. Arrow keys nudge it.'}</span></div>
-      ${r.pages ? pdfDoc(r.pages, f.fields, { admin: true, sel: ui.adminSel, placement: f.placement }) : `<div class="card-body">${docState(key, f.pdf)}</div>`}
-    </section>
-    <div class="stack admin-side">
-      ${sel ? card(`Tick box ${f.fields.indexOf(sel) + 1}`, `${F({ id: 'af-label', label: 'What the contractor agrees to', value: sel.label, attrs: 'data-afield="label"', hint: 'Shown on hover, read by screen readers and listed in the review.' })}
-        <label class="switch" for="af-req"><input type="checkbox" id="af-req" data-afield="required" ${sel.required ? 'checked' : ''}><span class="track"></span><span class="txt"><b>Required</b><small>Contractors cannot submit until it is ticked.</small></span></label>
-        <div class="field"><span class="label">Size</span><div class="segmented" role="radiogroup">${[['2.2', 'Small'], ['2.8', 'Medium'], ['3.6', 'Large']].map(([v, l]) => `<label><input type="radio" name="af-size" value="${v}" data-afield="size" ${Math.abs(sel.size - Number(v)) < 0.3 ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div></div>`,
-        { action: btn('Delete', { v: 'danger-ghost', sm: true, icon: 'trash', act: 'adminDeleteField', id: sel.id }) }) : ''}
-      ${card('Form details', `${F({ id: 'af-name', label: 'Name contractors see', value: f.name, attrs: 'data-aform="name"' })}`)}
-      ${card('Tick boxes', f.fields.length ? f.fields.map((x, i) => `<button class="list-row ${x.id === ui.adminSel ? 'sel' : ''}" style="width:100%;text-align:left" data-act="adminSelect" data-id="${x.id}"><span class="ic tone-${x.id === ui.adminSel ? 'info' : 'neutral'}" style="font-weight:700;font-size:12px">${i + 1}</span><span class="grow"><b class="small">${esc(x.label)}</b><span>Page ${x.page} · ${x.required ? 'Required' : 'Optional'}</span></span></button>`).join('') : '<p class="small muted" style="padding:12px">No tick boxes yet. Click on the document next to a clause to add one.</p>', { tight: true })}
-      ${card('Signature', `<div class="stack-sm">${[['bottom', 'Bottom of the last page', 'Use when the PDF leaves space at the end, like the sample.'], ['newpage', 'Add a new last page', 'Use when the PDF has no free space.']].map(([v, l, h]) => `<label class="choice"><input type="radio" name="af-place" value="${v}" data-aform="placement" ${f.placement === v ? 'checked' : ''}><span class="radio"></span><span class="grow"><b>${l}</b><small>${h}</small></span></label>`).join('')}</div><p class="xs faint">Contractors type their name and position, then draw or upload a signature. Company name and date are added automatically.</p>`)}
-      ${card('Required for', `<div class="stack-sm">${PERMIT_TYPES.map(t => `<label class="check"><input type="checkbox" data-aform="appliesTo" value="${t.id}" ${f.appliesTo.includes(t.id) ? 'checked' : ''}>${t.name}</label>`).join('')}</div>`)}
-      ${card('', `<div class="row between"><span class="small muted">Stop asking contractors to sign this form.</span>${btn('Delete form', { v: 'danger-ghost', sm: true, icon: 'trash', act: 'adminDeleteForm', id: f.id })}</div>`)}
-    </div>
-  </div>`;
-}
 function pReview() {
   const d = S.draft, t = typeOf(d.type);
   const sec = (title, step, rows) => card(title, `<dl class="dl">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v || '<span class="faint">Not provided</span>'}</dd>`).join('')}</dl>`, { action: btn('Edit', { v: 'ghost', sm: true, icon: 'edit', act: 'gotoStep', id: step }) });
@@ -1230,7 +1178,7 @@ function accessLine(c) {
   return `You left on ${fmt(c.changedOn)}`;
 }
 function accessActions(c, where) {
-  if (c.status === 'active') return where === 'hub' ? btn('Open', { v: 'primary', sm: true, act: 'openCommunity', id: c.id, iconR: 'arrowR' }) : btn('Leave', { v: 'danger-ghost', sm: true, act: 'leaveCommunity', id: c.id });
+  if (c.status === 'active') return where === 'hub' ? btn('Open', { v: 'primary', sm: true, act: 'openCommunity', id: c.id, iconR: 'arrowR' }) : (c.id !== S.community ? btn('Switch', { v: 'ghost', sm: true, act: 'switchCommunity', id: c.id }) : '') + btn('Leave', { v: 'danger-ghost', sm: true, act: 'leaveCommunity', id: c.id });
   if (c.status === 'pending') return btn('Withdraw request', { v: 'ghost', sm: true, act: 'withdrawAccess', id: c.id });
   return btn('Request access again', { sm: true, act: 'requestAgain', id: c.id });
 }
@@ -1252,7 +1200,7 @@ function pNoAccess() {
 }
 function setCommunities() {
   return card('Communities', S.communities.map(c => `<div class="list-row">${logoTile(c.logo, c.name, 'xs')}<span class="grow"><b>${esc(c.name)} ${c.id === S.community && c.status === 'active' ? badge('Current', 'brand') : ''}</b><span>${esc(c.area)} · ${accessLine(c)}</span></span>${c.status !== 'active' ? badge(...ACCESS[c.status]) : ''}${accessActions(c, 'settings')}</div>`).join(''),
-    { tight: true, sub: 'Communities where your company can request passes. To work in a different one, choose it on the main Buzzin dashboard.', action: btn('Request access', { v: 'primary', sm: true, icon: 'plus', act: 'requestAccess' }) });
+    { tight: true, sub: 'Communities where your company can request passes. Switch between them from the top bar.', action: btn('Request access', { v: 'primary', sm: true, icon: 'plus', act: 'requestAccess' }) });
 }
 function setNotifications() {
   const rows = [['submitted', 'Request submitted', 'Confirmation when a pass is sent'], ['changes', 'Changes requested', 'The community needs something from you'], ['approved', 'Pass approved or rejected', 'Decision on your request'], ['expiring', 'Documents expiring', 'IDs, registrations and company documents, 30 days ahead'], ['inspection', 'Final inspection', 'Inspection booked or completed'], ['news', 'Product news', 'New features and tips']];
@@ -1318,11 +1266,6 @@ function renderModal() {
         + '<input class="file-input" type="file" id="sig-file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" data-sigfile>'}
     ${E.sig ? `<span class="err">${ic('alert')}${E.sig}</span>` : ''}`,
     foot: btn('Cancel', { act: 'closeModal' }) + btn('Apply signature', { v: 'primary', act: 'saveSign' }) }); }
-  if (m.type === 'adminForm') { const E = m.errs || {}; return modalFrame({ title: 'Upload a PDF form', sub: 'Contractors will read it, tick each box you place, and sign it.', body: `
-    ${F({ id: 'af-new-name', label: 'Form name', req: true, bind: 'm.name', err: E.name, ph: 'For example, Contractor terms & community guidelines' })}
-    <div class="field"><span class="label">PDF file<span class="req">*</span></span>${m.data.fileName ? `<div class="file-row"><span class="ic">PDF</span><span class="grow"><b>${esc(m.data.fileName)}</b><span>${sizeTxt(m.data.size)}</span></span><label class="btn btn-ghost btn-sm" for="af-file">Replace</label></div>` : `<label class="dropzone" for="af-file"><span class="ic">${ic('upload')}</span><b>Upload PDF</b><span class="xs faint">PDF only · Max 4 MB in this preview</span></label>`}<input class="file-input" type="file" id="af-file" accept="application/pdf,.pdf" data-adminpdf="new">${E.file ? `<span class="err">${ic('alert')}${E.file}</span>` : `<span class="hint">No PDF to hand? ${btn('Use the sample terms PDF', { v: 'link', act: 'adminUseSample', cls: 'xs' })}</span>`}</div>
-    <div class="field"><span class="label">Required for</span>${PERMIT_TYPES.map(t => `<label class="check"><input type="checkbox" data-mapplies value="${t.id}" ${m.data.appliesTo.includes(t.id) ? 'checked' : ''}>${t.name}</label>`).join('')}</div>`,
-    foot: btn('Cancel', { act: 'closeModal' }) + btn('Continue to place tick boxes', { v: 'primary', act: 'adminCreate', iconR: 'arrowR' }) }); }
   if (m.type === 'companyDoc') { const E = m.errs || {}; return modalFrame({ title: m.data.id ? 'Replace document' : 'Add company document', body: `
     ${F({ id: 'cd-name', label: 'Document', req: true, bind: 'm.name', options: ['Public liability insurance', "Workmen's compensation insurance", 'Contractor all-risk insurance', 'VAT registration certificate', 'Company profile', 'Chamber of commerce certificate', 'Other'], disabled: !!m.data.id })}
     <div class="field"><span class="label">File<span class="req">*</span></span>${uploader({ key: 'cdoc', bind: 'm.fileObj', label: 'document', file: m.data.fileObj })}${E.file ? `<span class="err">${ic('alert')}${E.file}</span>` : ''}</div>
@@ -1334,7 +1277,7 @@ function renderModal() {
     ${F({ id: 'ac-msg', label: 'Message', opt: true, bind: 'm.message', type: 'textarea', rows: 3, ph: 'For example, We maintain HVAC systems for several owners in your community.' })}
     ${alertBox('info', 'Shared with the community', 'Company name, trade licence, TRN and your insurance documents.')}`,
     foot: btn('Cancel', { act: 'closeModal' }) + btn('Send request', { v: 'primary', icon: 'send', act: 'sendAccess' }) }); }
-  if (m.type === 'drawer') return `<div class="overlay drawer-overlay" data-overlay style="place-items:stretch start"><div class="drawer left sidebar" role="dialog" aria-modal="true" aria-label="Menu" style="position:static;height:100%"><div class="side-inner">${route().startsWith('admin') ? adminSidebar() : sidebar(route())}</div></div></div>`;
+  if (m.type === 'drawer') return `<div class="overlay drawer-overlay" data-overlay style="place-items:stretch start"><div class="drawer left sidebar" role="dialog" aria-modal="true" aria-label="Menu" style="position:static;height:100%"><div class="side-inner">${sidebar(route())}</div></div></div>`;
   if (m.type === 'pickDoc') {
     const k = m.data.key, want = DOCS[k].name;
     const list = companyDocList().sort((a, b) => (b.name === want) - (a.name === want));
@@ -1379,9 +1322,6 @@ function page(r) {
   if (r.startsWith('submitted-')) return pSubmitted(r.slice(10));
   if (r.startsWith('completion')) return pCompletion(r.slice(11));
   if (r.startsWith('settings')) return pSettings(r);
-  if (r === 'admin-forms') return pAdminForms();
-  if (r === 'admin-profile') return pAdminProfile();
-  if (r.startsWith('admin-form-')) return pAdminForm(r.slice(11));
   return ({ home: pHome, permits: pPermits, type: pType, visitor: pVisitor, help: pHelp, people: pPeople, vehicles: pVehicles }[r] || pHome)();
 }
 const TITLES = { home: 'Overview', permits: 'Authorized passes', type: 'Request pass', visitor: 'Visitor pass', help: 'Help & contact', people: 'Employees', vehicles: 'Vehicles' };
@@ -1395,13 +1335,13 @@ function render() {
     document.title = 'Your communities · Buzzin';
     return;
   }
-  const blocked = !r.startsWith('admin') && community().status !== 'active' && !r.startsWith('settings') && r !== 'help';
+  const blocked = community().status !== 'active' && !r.startsWith('settings') && r !== 'help';
   const inWizard = !blocked && STEPS.some(s => s[0] === r) && S.draft;
   document.getElementById('app').innerHTML = `<div class="app ${inWizard ? 'has-actionbar' : ''}">
-    <aside class="sidebar"><div class="side-inner">${r.startsWith('admin') ? adminSidebar() : sidebar(r)}</div></aside>
+    <aside class="sidebar"><div class="side-inner">${sidebar(r)}</div></aside>
     <div class="main">${topbar()}<main class="content" id="main">${blocked ? pNoAccess() : page(r)}</main>${bottomNav(r)}</div>
   </div>${rowMenuLayer()}${renderModal()}`;
-  document.title = (TITLES[r] || (r === 'admin-profile' ? 'Community profile' : r.startsWith('admin') ? 'Permit forms' : '') || (r.startsWith('settings') ? 'Settings' : r.startsWith('permit-') ? r.slice(7) : STEPS.find(s => s[0] === r)?.[1]) || 'Buzzin') + ' · Buzzin contractor portal';
+  document.title = (TITLES[r] || (r.startsWith('settings') ? 'Settings' : r.startsWith('permit-') ? r.slice(7) : STEPS.find(s => s[0] === r)?.[1]) || 'Buzzin') + ' · Buzzin contractor portal';
   if (focusId) {
     const el = document.getElementById(focusId);
     if (el) { el.focus({ preventScroll: true }); if (sel && el.setSelectionRange) try { el.setSelectionRange(sel[0], sel[1]); } catch (e) { /* date inputs */ } }
@@ -1549,37 +1489,6 @@ const ACT = {
     catch (e) { toast('Could not create the signed PDF. ' + e.message, { err: true }); }
   },
   downloadOriginal(t) { const f = S.forms.find(x => x.id === t.dataset.id); saveBytes(formPdf(f.published ? f.published.pdf : f.pdf), f.published ? f.published.fileName : f.fileName); },
-  adminNewForm() { ui.modal = { type: 'adminForm', data: { name: '', fileName: '', size: 0, pdf: null, appliesTo: [...ALL_TYPES] } }; render(); },
-  adminUseSample() { Object.assign(ui.modal.data, { fileName: 'buzzin-contractor-terms-sample.pdf', size: 61496, pdf: 'sample' }); if (!ui.modal.data.name) ui.modal.data.name = 'Contractor terms & community guidelines'; if (ui.modal.errs) delete ui.modal.errs.file; render(); },
-  adminCreate() {
-    const m = ui.modal, d = m.data, errs = {};
-    if (!d.name.trim()) errs.name = 'Enter a name contractors will recognise.';
-    if (!d.pdf) errs.file = 'Upload the PDF.';
-    if (!d.appliesTo.length) errs.name = errs.name || 'Choose at least one permit type.';
-    if (Object.keys(errs).length) { m.errs = errs; render(); return; }
-    const f = { id: uid('frm'), community: S.community, name: d.name.trim(), fileName: d.fileName, pdf: d.pdf, pdfRev: 0, fields: [], appliesTo: d.appliesTo, placement: 'bottom', updated: TODAY, published: null };
-    S.forms.push(f);
-    if (!persist()) { S.forms.pop(); return; }
-    ui.modal = null; ui.adminSel = null; ui.adminMode = 'add'; go('admin-form-' + f.id);
-  },
-  adminSelect(t) { ui.adminSel = t.dataset.id; render(); },
-  adminDeleteField(t) {
-    const f = curAdminForm(), i = f.fields.findIndex(x => x.id === t.dataset.id), fd = f.fields[i];
-    openConfirm({ title: 'Delete this tick box?', message: `“${fd.label}” on page ${fd.page} will be removed.`, confirmText: 'Delete tick box', tone: 'danger', onConfirm: () => { f.fields.splice(i, 1); ui.adminSel = null; f.updated = TODAY; persist(); toast('Tick box deleted', { undo: () => { f.fields.splice(i, 0, fd); persist(); render(); } }); } });
-  },
-  adminReplace() { openConfirm({ title: 'Replace the PDF?', message: 'Tick boxes stay in the same place on each page. Check their positions after uploading.', confirmText: 'Choose new PDF', icon: 'refresh', onConfirm: () => document.getElementById('admin-replace').click() }); },
-  adminPublish(t) {
-    const f = S.forms.find(x => x.id === t.dataset.id);
-    if (!f.fields.length) { toast('Add at least one tick box before publishing.', { err: true }); return; }
-    if (!f.appliesTo.length) { toast('Choose at least one permit type under “Required for”.', { err: true }); return; }
-    if (f.published && formStatus(f)[1] === 'ok') { toast('No changes to publish.'); return; }
-    const v = f.published ? f.published.version + 1 : 1;
-    openConfirm({ title: `Publish version ${v}?`, message: `Contractors who haven’t submitted yet will be asked to tick and sign version ${v}. Requests already submitted keep the version they signed.`, confirmText: `Publish version ${v}`, icon: 'send', onConfirm: () => { f.published = Object.assign(clone(pubSubset(f)), { version: v, fileName: f.fileName, at: TODAY }); f.updated = TODAY; persist(); toast(`Version ${v} published`); } });
-  },
-  adminDeleteForm(t) {
-    const i = S.forms.findIndex(x => x.id === t.dataset.id), f = S.forms[i];
-    openConfirm({ title: `Delete “${f.name}”?`, message: 'Contractors will no longer be asked to sign it. Copies already signed on submitted requests are kept.', confirmText: 'Delete form', tone: 'danger', onConfirm: () => { S.forms.splice(i, 1); persist(); toast('Form deleted'); go('admin-forms'); } });
-  },
   addMaterial() { ui.modal = { type: 'material', data: { name: '', kind: 'Material', qty: 1, unit: 'pcs', removed: 'Yes', notes: '' } }; render(); },
   editMaterial(t) { ui.modal = { type: 'material', data: clone(S.draft.materials.find(m => m.id === t.dataset.id)) }; render(); },
   saveMaterial(t) {
@@ -1636,6 +1545,13 @@ const ACT = {
     if (inModal) { ui.modal.onCancel = prev; }
   },
   mainDashboard() { ui.pop = null; go('communities'); },
+  switchCommunity(t) {
+    const c = S.communities.find(x => x.id === t.dataset.id); ui.pop = null;
+    if (!c || c.id === S.community) { render(); return; }
+    const doIt = () => { S.community = c.id; ui.tab = 'all'; persist(); toast(`Switched to ${c.name}`); go('home'); };
+    if (STEPS.some(s => s[0] === route()) && S.draft) openConfirm({ title: `Switch to ${c.name}?`, message: 'Your request is saved as a draft. Switch back to this community to continue it.', confirmText: 'Switch community', tone: 'warn', onConfirm: doIt });
+    else doIt();
+  },
   pickCompanyDoc(t) { ui.modal = { type: 'pickDoc', data: { key: t.dataset.id } }; render(); },
   useCompanyDoc(t) {
     const k = ui.modal.data.key, c = companyDocList().find(x => x.id === t.dataset.id), d = S.draft;
@@ -1643,7 +1559,6 @@ const ACT = {
     d.docs[k] = { file: { name: c.file, size: 0, date: TODAY, source: 'company', companyId: c.id }, expiry: c.noExpiry ? '' : (c.expiry || ''), noExpiry: !!c.noExpiry };
     ui.modal = null; persistDraft(); toast(`${c.name} added from company documents`, { undo: () => { d.docs[k] = before; persistDraft(); render(); } }); render();
   },
-  removeCommunityLogo() { const c = community(); openConfirm({ title: 'Remove the community logo?', message: 'Contractors will see your community initials instead.', confirmText: 'Remove logo', tone: 'danger', onConfirm: () => { const old = c.logo; c.logo = null; persist(); toast('Logo removed', { undo: () => { c.logo = old; persist(); render(); } }); } }); },
   removeLogo() { openConfirm({ title: 'Remove your logo?', message: 'Passes will show your company initials instead. Save changes to apply.', confirmText: 'Remove logo', tone: 'danger', onConfirm: () => { ui.form.company.logo = null; ui.dirty = true; } }); },
   discardForm() { openConfirm({ title: 'Discard unsaved changes?', message: 'Your edits on this page will be lost.', confirmText: 'Discard changes', tone: 'danger', onConfirm: () => { ui.form = initForm(ui.formTab); ui.dirty = false; ui.formErr = {}; } }); },
   saveForm() {
@@ -1703,8 +1618,6 @@ const CHANGE = {
   showPw(el) { ui.pw.show = el.checked; render(); },
   signMode(el) { ui.signMode = el.value; if (ui.modal) ui.modal.errs = null; render(); },
   async sigBg(el) { const d = ui.modal.data; d.removeBg = el.checked; d.upload = await processSig(d.orig, d.removeBg); render(); },
-  communityLogoBg(el) { community().logo.bg = el.value; persist(); render(); },
-  adminMode(el) { ui.adminMode = el.value; render(); },
   twofa(el) {
     el.checked = S.twofa;
     if (S.twofa) openConfirm({ title: 'Turn off two-step verification?', message: 'Your account will be protected by your password only.', confirmText: 'Turn off', tone: 'danger', icon: 'shield', onConfirm: () => { S.twofa = false; persist(); toast('Two-step verification turned off'); } });
@@ -1785,7 +1698,7 @@ document.addEventListener('change', e => {
     if (el.hasAttribute('data-rerender') || el.closest('[data-rerender-all]')) render();
   }
 });
-/* ================= Signature upload & admin form editor events ================= */
+/* ================= Signature upload ================= */
 async function takeSigFile(file) {
   if (!file) return;
   if (!/^image\/(png|jpe?g)$/.test(file.type)) { toast('Use a PNG or JPG image of your signature.', { err: true }); return; }
@@ -1797,80 +1710,12 @@ async function takeSigFile(file) {
 document.addEventListener('change', e => {
   const el = e.target;
   if (el.dataset.sigfile !== undefined) { const f = el.files[0]; el.value = ''; takeSigFile(f); return; }
-  if (el.dataset.adminpdf) {
-    const file = el.files[0], target = el.dataset.adminpdf; el.value = '';
-    readPdf(file).then(r => {
-      if (!r) return;
-      if (target === 'new') { Object.assign(ui.modal.data, r); if (!ui.modal.data.name) ui.modal.data.name = r.fileName.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' '); if (ui.modal.errs) delete ui.modal.errs.file; }
-      else { const f = S.forms.find(x => x.id === target), old = { pdf: f.pdf, fileName: f.fileName }; Object.assign(f, { pdf: r.pdf, fileName: r.fileName, pdfRev: (f.pdfRev || 0) + 1, updated: TODAY }); if (!persist()) Object.assign(f, old); else toast(`${r.fileName} uploaded. Check the tick box positions.`); }
-      render();
-    }).catch(err => toast(err.message, { err: true }));
-    return;
-  }
-  if (el.dataset.mapplies !== undefined) { const a = ui.modal.data.appliesTo; ui.modal.data.appliesTo = el.checked ? [...new Set([...a, el.value])] : a.filter(x => x !== el.value); return; }
-  const f = route().startsWith('admin-form-') ? curAdminForm() : null;
-  if (!f) return;
-  if (el.dataset.afield) {
-    const fd = f.fields.find(x => x.id === ui.adminSel); if (!fd) return;
-    const k = el.dataset.afield;
-    fd[k] = k === 'required' ? el.checked : k === 'size' ? Number(el.value) : el.value;
-    f.updated = TODAY; persist(); render(); return;
-  }
-  if (el.dataset.aform) {
-    const k = el.dataset.aform;
-    if (k === 'appliesTo') f.appliesTo = el.checked ? [...new Set([...f.appliesTo, el.value])] : f.appliesTo.filter(x => x !== el.value);
-    else f[k] = el.value;
-    f.updated = TODAY; persist(); render();
-  }
 }, true);
-document.addEventListener('input', e => {
-  const el = e.target, f = route().startsWith('admin-form-') ? curAdminForm() : null;
-  if (!f) return;
-  if (el.dataset.afield === 'label') { const fd = f.fields.find(x => x.id === ui.adminSel); if (fd) { fd.label = el.value; persist(); } }
-  if (el.dataset.aform === 'name') { f.name = el.value; persist(); }
-});
-document.addEventListener('pointerdown', e => {
-  const pageEl = e.target.closest('[data-admin-page]');
-  if (!pageEl || e.button !== 0) return;
-  const f = curAdminForm(); if (!f) return;
-  const rect = pageEl.getBoundingClientRect(), page = Number(pageEl.dataset.adminPage);
-  const pct = ev => [Math.min(98, Math.max(2, (ev.clientX - rect.left) / rect.width * 100)), Math.min(98, Math.max(2, (ev.clientY - rect.top) / rect.height * 100))];
-  const boxEl = e.target.closest('[data-box]');
-  if (boxEl) {
-    e.preventDefault();
-    const fd = f.fields.find(x => x.id === boxEl.dataset.box), sx = e.clientX, sy = e.clientY;
-    let moved = false;
-    const move = ev => { if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 4) return; moved = true; const [x, y] = pct(ev); boxEl.style.left = x + '%'; boxEl.style.top = y + '%'; fd.x = +x.toFixed(2); fd.y = +y.toFixed(2); };
-    const up = () => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); ui.adminSel = fd.id; if (moved) { f.fields.sort((a, b) => a.page - b.page || a.y - b.y); f.updated = TODAY; persist(); } render(); };
-    addEventListener('pointermove', move); addEventListener('pointerup', up);
-    return;
-  }
-  if ((ui.adminMode || 'add') !== 'add' || e.target.tagName !== 'IMG') { if (ui.adminSel) { ui.adminSel = null; render(); } return; }
-  const [x, y] = pct(e);
-  const fd = { id: uid('b'), page, x: +x.toFixed(2), y: +y.toFixed(2), size: 2.8, label: `I agree to clause ${f.fields.length + 1}`, required: true };
-  f.fields.push(fd); f.fields.sort((a, b) => a.page - b.page || a.y - b.y);
-  ui.adminSel = fd.id; f.updated = TODAY; persist(); render();
-  setTimeout(() => { const l = document.getElementById('af-label'); if (l) { l.focus({ preventScroll: true }); l.select(); } }, 0);
-});
-document.addEventListener('keydown', e => {
-  if (!route().startsWith('admin-form-') || !ui.adminSel || ui.modal || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
-  const f = curAdminForm(), fd = f && f.fields.find(x => x.id === ui.adminSel); if (!fd) return;
-  const step = e.shiftKey ? 1 : 0.2, d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
-  if (d) { e.preventDefault(); fd.x = +(fd.x + d[0]).toFixed(2); fd.y = +(fd.y + d[1]).toFixed(2); f.updated = TODAY; persist(); render(); }
-  if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); ACT.adminDeleteField({ dataset: { id: fd.id } }); }
-});
 document.addEventListener('drop', e => { const z = e.target.closest('[data-sigdrop]'); if (z) { e.preventDefault(); takeSigFile(e.dataTransfer.files[0]); } });
 document.addEventListener('dragover', e => { if (e.target.closest('[data-sigdrop]')) e.preventDefault(); });
 function handleFile(bind, file) {
   if (!file) return;
   if (file.size > 10 * 1048576) { toast(`${file.name} is larger than 10 MB. Choose a smaller file.`, { err: true }); return; }
-  if (bind === 'community.logo') {
-    if (!/^image\/(png|jpe?g|svg\+xml|webp|gif)$/.test(file.type)) { toast('Choose a PNG, JPG, SVG or WebP image.', { err: true }); return; }
-    if (file.size > 5 * 1048576) { toast('This image is larger than 5 MB. Choose a smaller one.', { err: true }); return; }
-    const c = community(), old = c.logo;
-    prepareLogo(file).then(logo => { c.logo = logo; if (!persist()) { c.logo = old; return; } render(); toast(`Logo updated on a ${logo.tone === 'light' ? 'dark' : 'light'} background`, { undo: () => { c.logo = old; persist(); render(); } }); }).catch(e => toast(e.message, { err: true }));
-    return;
-  }
   if (bind === 'f.company.logo') {
     if (!/^image\/(png|jpe?g|svg\+xml|webp|gif)$/.test(file.type)) { toast('Choose a PNG, JPG, SVG or WebP image.', { err: true }); return; }
     if (file.size > 5 * 1048576) { toast('This image is larger than 5 MB. Choose a smaller one.', { err: true }); return; }

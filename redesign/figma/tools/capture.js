@@ -48,6 +48,7 @@ const STATES = [
   ['11 Draft exists – confirm', 'type', 'd', click('[data-act="startPermit"]'), true],
   ['12 Step 1 Work details', 'details', 'dm'],
   ['13 Step 1 Validation errors', 'details', 'dm', async pg => { await pg.evaluate(() => { const d = JSON.parse(localStorage.getItem('buzzin-redesign-v2')); }); await pg.fill('#f-title', ''); await pg.fill('#f-phone', '05'); await pg.click('[data-act="wzNext"]'); await pg.waitForTimeout(150); }],
+  ['14 Community dropdown', 'home', 'dm', click('.switcher'), true],
   ['15 Units multi-select', 'details', 'd', click('#f-units'), true],
   ['16 Step 2 Materials', 'materials', 'dm'],
   ['17 Add item', 'materials', 'dm', click('[data-act="addMaterial"]'), true],
@@ -94,12 +95,7 @@ const STATES = [
   ['52 Sign out – confirm', 'home', 'd', seq(click('[data-pop="user"]'), click('[data-act="signOut"]')), true],
   ['53 Mobile menu', 'home', 'm', click('[data-act="openDrawer"]'), true],
   ['54 Overview – dark mode', 'home', 'd', null, false, 'dark'],
-  ['55 Admin – Permit forms', 'admin-forms', 'dm'],
-  ['59 Admin – Community profile', 'admin-profile', 'd'],
   ['60 Marina Gate – white logo on dark', 'home', 'd', async pg => { await pg.evaluate(() => { const k = 'buzzin-redesign-v3'; const s = JSON.parse(localStorage.getItem(k)); s.community = 'marina'; localStorage.setItem(k, JSON.stringify(s)); location.reload(); }); await pg.waitForTimeout(500); }],
-  ['56 Admin – Upload PDF form', 'admin-forms', 'd', seq(click('.page-head [data-act="adminNewForm"]'), click('[data-act="adminUseSample"]')), true],
-  ['57 Admin – Place tick boxes', 'admin-form-frm1', 'd', seq(waitPdf, click('[data-act="adminSelect"] >> nth=1'))],
-  ['58 Admin – Publish confirm', 'admin-form-frm1', 'd', seq(waitPdf, async pg => { await pg.click('[data-act="adminSelect"] >> nth=0'); await pg.fill('#af-label', 'I agree to the working hours'); await pg.press('#af-label', 'Tab'); await pg.waitForTimeout(100); }, click('.page-head [data-act="adminPublish"]')), true],
 ];
 
 function extractor(overlay) {

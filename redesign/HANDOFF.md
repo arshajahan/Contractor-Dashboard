@@ -20,7 +20,7 @@ Files:
 ## Navigation (kept from the live portal)
 
 Passes: Overview, Authorized passes, Request pass · Resources: Employees, Vehicles, Settings · Support: Help & contact.
-The community is chosen on the main Buzzin dashboard before entering this portal. Here it is a **static label** in the top bar (logo, name and a Contractor tag). The account menu has **Back to main dashboard** for choosing another community. Searchable dropdowns are still used for long lists such as units.
+The community **dropdown** in the top bar (logo, name and a Contractor tag) switches community in one click. It is searchable, shows each community's access status (only active ones can be picked), and links to Request access and All communities. Switching during a request asks first; the draft stays saved.
 
 ## Settings: every live field is kept
 
@@ -51,16 +51,12 @@ New settings sections: Company documents (insurance, VAT certificate… with exp
 | people, addPerson | Employees + Add/Edit employee popup |
 | vehicles, addVehicle | Vehicles + Add/Edit vehicle popup |
 | settings, password | Settings (see above) |
-| community | Static community label in the top bar (chosen on the main dashboard) |
+| community | Community dropdown in the top bar |
 | help, completion, visitor, menu | Help & contact, Final inspection, Visitor pass, mobile "More" drawer |
 
 ## Community terms PDF (new)
 
-**Community admin side** (`#admin-forms`, or account menu › Community admin view):
-1. Upload the community's terms / guidelines as a PDF.
-2. Click next to each clause to place a tick box. Drag to move, arrow keys to nudge, Delete to remove. Each box has a label, Required on/off and a size.
-3. Choose where the signature goes: bottom of the last page, or a new last page.
-4. Choose which permit types need it, then **Publish**. Each publish is a new version. Contractors who haven't submitted yet sign the new version. Submitted requests keep the version they signed.
+**Where the forms come from:** each community provides its terms PDF, the position of each tick box (as % of the page), which permit types need it, where the signature goes (bottom of the last page, or a new last page), and a version number. This is set up on the community's side and isn't part of this contractor design. The prototype ships one sample form for Buzzin community.
 
 **Contractor side** (step 6, "Sign terms"):
 - The PDF is shown page by page with the tick boxes on top. Every required box must be ticked. Missing ones turn red.
@@ -71,7 +67,7 @@ Implementation notes: store each form's PDF, field positions as % of page size, 
 
 ## Main dashboard and community access
 
-- **Main dashboard** (`#communities`, or account menu › Back to main dashboard): "Your communities" shows a card per community with its logo, area and access status. Only **Active** communities have **Open**.
+- **All communities** (`#communities`, from the dropdown or the account menu): "Your communities" shows a card per community with its logo, area and access status. Only **Active** communities have **Open**.
 - Statuses: **Active** · **Waiting for approval** (Withdraw request) · **Access removed by the community** (shows the date, with Request access again) · **You left** (shows the date, with Request access again).
 - **No active community:** a clear empty state says "You don't have access to any community", explains that a community must give access before work permits can be requested, and offers **Request access to a community**. Removed or left communities are listed below it.
 - **Inside the portal:** if the current community removes access, or the contractor leaves it, every page except Settings and Help shows "You don't have access to [community]" with the reason and date, the community's contact email, **Request access again** and **Back to main dashboard**. Request pass is hidden.
@@ -93,7 +89,7 @@ Implementation notes: store each form's PDF, field positions as % of page size, 
 
 ## Account type
 
-- The community label in the top bar shows a **Contractor** tag next to the community name (**Admin** on the community admin side). On phones it moves to the small "Community" line so the name stays readable.
+- The community dropdown in the top bar shows a **Contractor** tag next to the community name. On phones it moves to the small "Community" line so the name stays readable.
 
 ## Company logo
 
@@ -104,8 +100,8 @@ Implementation notes: store each form's PDF, field positions as % of page size, 
 
 ## Community logo (co-branding)
 
-- Each community has its own logo, uploaded by community staff on the admin side under **Community profile**. The same rules apply as for company logos: any image type, shown contained, automatic light or dark background, with an override.
-- Contractors see it at the top of the sidebar, as the logo only with no Buzzin wordmark and no name, because the name is in the top bar. It also shows in the top bar community label and in Settings › Communities.
+- Each community has its own logo, provided by the community. The same display rules apply as for company logos: any image type, shown contained, and an automatic light or dark background.
+- Contractors see it at the top of the sidebar, as the logo only with no Buzzin wordmark and no name, because the name is in the top bar. It also shows in the top bar community dropdown, the All communities page and Settings › Communities.
 - Communities without a logo show their initials.
 
 ## Expiry rule
@@ -117,4 +113,4 @@ Implementation notes: store each form's PDF, field positions as % of page size, 
 
 ## Confirmation popups
 
-Submit request · Resubmit after changes · Submit visitor pass · Send inspection request (warns if checklist incomplete) · Send message to community · Delete draft · Start new request when a draft exists · Duplicate (replaces draft) · Withdraw request / Cancel pass (with reason) · Remove material / employee / vehicle / uploaded file / logo / signature / company document · Save company details · Change email · Change password · Turn 2-step verification on/off · Sign out · Switch community during a request · Leave community (type LEAVE) · Withdraw access request · Deactivate account (type DEACTIVATE) · Discard unsaved changes · Leave page with unsaved changes · Share QR codes. · Admin: delete tick box · replace PDF · publish version · delete form. · Continue with documents close to expiry.
+Submit request · Resubmit after changes · Submit visitor pass · Send inspection request (warns if checklist incomplete) · Send message to community · Delete draft · Start new request when a draft exists · Duplicate (replaces draft) · Withdraw request / Cancel pass (with reason) · Remove material / employee / vehicle / uploaded file / logo / signature / company document · Save company details · Change email · Change password · Turn 2-step verification on/off · Sign out · Switch community during a request · Leave community (type LEAVE) · Withdraw access request · Deactivate account (type DEACTIVATE) · Discard unsaved changes · Leave page with unsaved changes · Share QR codes. · Continue with documents close to expiry.
