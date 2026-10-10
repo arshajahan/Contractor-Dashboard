@@ -690,3 +690,14 @@ details.faq p { padding-bottom: 14px; color: var(--text-2); }
 .logo-tile.brand { width: 100%; height: 64px; padding: 8px 14px; border-radius: 10px; }
 .logo-tile.brand.initials { font-size: 20px; }
 .side-brand .logo-tile.on-dark { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18); }
+.switcher .name-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.switcher .name-row b { min-width: 0; }
+.role-pill { flex: none; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 1px 6px; border-radius: 999px; background: var(--brand-soft); color: var(--warn); line-height: 1.5; }
+.or-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+button.select-row { width: 100%; text-align: left; font: inherit; color: inherit; }
+button.select-row:disabled { cursor: not-allowed; }
+.switcher .role-mini { display: none; }
+@media (max-width: 960px) {
+  .switcher .name-row .role-pill { display: none; }
+  .switcher .role-mini { display: inline; color: var(--warn); }
+}

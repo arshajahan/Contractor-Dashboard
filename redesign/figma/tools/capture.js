@@ -53,6 +53,7 @@ const STATES = [
   ['20 Step 4 Workers', 'personnel', 'dm'],
   ['20b Workers – expiry warning', 'personnel', 'dm', async pg => { await pg.check('input[value="p3"]'); await pg.evaluate(() => { location.hash = 'documents'; }); await pg.waitForTimeout(150); await pg.evaluate(() => { location.hash = 'personnel'; }); await pg.waitForTimeout(250); }],
   ['21 Step 5 Documents', 'documents', 'dm'],
+  ['21b Choose from company documents', 'documents', 'dm', click('[data-act="pickCompanyDoc"] >> nth=0'), true],
   ['22 Step 6 Sign terms', 'pdf', 'dm', waitPdf],
   ['22b Sign terms – boxes missing', 'pdf', 'd', seq(waitPdf, click('[data-act="wzNext"]'))],
   ['23 Signature – draw', 'pdf', 'dm', seq(waitPdf, click('[data-act="openSign"][data-mode="draw"]')), true],

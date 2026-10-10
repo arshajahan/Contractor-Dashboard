@@ -69,6 +69,16 @@ New settings sections: Company documents (insurance, VAT certificate… with exp
 
 Implementation notes: store each form's PDF, field positions as % of page size, and published version snapshots. Store the signed PDF (or the inputs to regenerate it) with the submitted request. The prototype uses pdf.js to show the PDF and pdf-lib to stamp it (both in `redesign/vendor/`). The sample PDF is in `redesign/samples/`.
 
+## Company documents and permits
+
+- **Company documents** (Settings) holds company-wide files: trade licence, insurance, VAT certificate and others, each with an expiry date. Upload once. Communities can see them, and the contractor is reminded before they expire.
+- In a permit's **Documents** step, each document offers **Upload from computer** or **Choose from company documents**. The picker puts the best match first. Expired or missing files can't be picked. Picking copies the file and its expiry date into the permit, and the file shows "From company documents".
+- After uploading from the computer, **Save to company documents for future permits** adds it to (or, after a confirmation, replaces it in) Company documents.
+
+## Account type
+
+- The community dropdown in the top bar shows a **Contractor** tag next to the community name (**Admin** on the community admin side). On phones it moves to the small "Community" line so the name stays readable.
+
 ## Company logo
 
 - Accepts PNG (including transparent), JPG, SVG and WebP, up to 5 MB. It is resized to at most 480 px on its longest side.

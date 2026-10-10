@@ -178,6 +178,7 @@ function seed() {
     companyDocs: [
       { id: 'cd1', name: 'Public liability insurance', expiry: '2026-10-28', file: 'pli-certificate-2026.pdf', required: true },
       { id: 'cd2', name: "Workmen's compensation insurance", expiry: '2027-01-31', file: 'wc-policy-2026.pdf', required: true },
+      { id: 'cd5', name: 'Contractor all-risk insurance', expiry: '2027-02-15', file: 'car-policy-2026.pdf' },
       { id: 'cd3', name: 'VAT registration certificate', noExpiry: true, file: 'vat-certificate.pdf' },
       { id: 'cd4', name: 'Company profile', noExpiry: true, file: null },
     ],
@@ -362,7 +363,7 @@ function communitySwitcher() {
   const list = S.communities.filter(x => !q || (x.name + x.area).toLowerCase().includes(q));
   return `<div class="pop-anchor">
     <button class="switcher" data-pop="community" aria-haspopup="listbox" aria-expanded="${open}" aria-label="Community: ${esc(c.name)}. Change community">
-      ${logoTile(c.logo, c.name, 'xs')}<span class="txt"><small>Community</small><b>${esc(c.name)}</b></span>${ic('down', 'chev')}
+      ${logoTile(c.logo, c.name, 'xs')}<span class="txt"><small>Community<span class="role-mini"> · ${route().startsWith('admin') ? 'Admin' : 'Contractor'}</span></small><span class="name-row"><b>${esc(c.name)}</b><span class="role-pill">${route().startsWith('admin') ? 'Admin' : 'Contractor'}</span></span></span>${ic('down', 'chev')}
     </button>
     ${open ? `<div class="popover wide" role="dialog" aria-label="Choose a community">
       <div class="pop-search">${ic('search')}<input id="community-q" data-q="community" placeholder="Search communities" value="${esc(ui.q.community || '')}" autocomplete="off"></div>
@@ -713,8 +714,17 @@ function pPersonnel() {
 function uploader({ key, bind, label, accept = '.pdf,.jpg,.jpeg,.png', file }) {
   const id = 'up-' + key;
   return file && file.name
-    ? `<div class="file-row"><span class="ic">${/\.(png|jpe?g)$/i.test(file.name) ? 'IMG' : 'PDF'}</span><span class="grow"><b>${esc(file.name)}</b><span>${sizeTxt(file.size) || 'Uploaded'} · Uploaded ${fmt(file.date || TODAY)}</span></span>${btn('', { v: 'ghost', sm: true, icon: 'eye', act: 'previewFile', id: file.name, title: 'Preview' })}<label class="btn btn-ghost btn-sm" for="${id}">Replace</label>${btn('', { v: 'danger-ghost', sm: true, icon: 'trash', act: 'removeFile', id: bind, title: 'Remove ' + file.name, attrs: `data-label="${esc(label)}"` })}<input class="file-input" type="file" id="${id}" accept="${accept}" data-file="${bind}"></div>`
+    ? `<div class="file-row"><span class="ic">${/\.(png|jpe?g)$/i.test(file.name) ? 'IMG' : 'PDF'}</span><span class="grow"><b>${esc(file.name)}</b><span>${file.source === 'company' ? 'From company documents' : `${sizeTxt(file.size) || 'Uploaded'} · Uploaded ${fmt(file.date || TODAY)}`}</span></span>${btn('', { v: 'ghost', sm: true, icon: 'eye', act: 'previewFile', id: file.name, title: 'Preview' })}<label class="btn btn-ghost btn-sm" for="${id}">Replace</label>${btn('', { v: 'danger-ghost', sm: true, icon: 'trash', act: 'removeFile', id: bind, title: 'Remove ' + file.name, attrs: `data-label="${esc(label)}"` })}<input class="file-input" type="file" id="${id}" accept="${accept}" data-file="${bind}"></div>`
     : `<label class="dropzone" for="${id}" data-drop="${bind}"><span class="ic">${ic('upload')}</span><b>Upload ${esc(label)}</b><span class="xs faint">Drag a file here or click to choose · PDF, JPG or PNG · Max 10 MB</span><input class="file-input" type="file" id="${id}" accept="${accept}" data-file="${bind}"></label>`;
+}
+function companyDocList() {
+  return [{ id: 'licence', name: 'Trade licence', file: S.company.licence && S.company.licence.name, expiry: S.company.licenceExpiry }, ...S.companyDocs];
+}
+function companyDocChoice(k, doc) {
+  const name = DOCS[k].name, match = companyDocList().find(c => c.name === name && c.file);
+  if (!doc.file) return `<div class="or-row"><span class="faint small">or</span>${btn('Choose from company documents', { sm: true, icon: 'briefcase', act: 'pickCompanyDoc', id: k })}${match ? `<span class="xs faint">Your saved ${esc(name)} is there.</span>` : ''}</div>`;
+  if (doc.file.source === 'company') return '';
+  return `<label class="check"><input type="checkbox" data-act-change="saveToCompany" data-key="${k}" ${doc.file.savedToCompany ? 'checked disabled' : ''}><span>${doc.file.savedToCompany ? 'Saved to company documents' : 'Save to company documents for future permits'}<small>${doc.file.savedToCompany ? 'You can choose it on your next permit.' : 'Next time, choose it instead of uploading again.'}</small></span></label>`;
 }
 function docCard(k, required) {
   const d = S.draft;
@@ -723,6 +733,7 @@ function docCard(k, required) {
   return card(`${meta.name} ${required ? badge('Required', 'brand') : badge('Optional')}`, `
     <p class="small muted" style="margin-top:-4px">${meta.hint}</p>
     <div id="f-doc-${k}" tabindex="-1">${uploader({ key: k, bind: `d.docs.${k}.file`, label: meta.name, file: doc.file })}</div>
+    ${companyDocChoice(k, doc)}
     <div class="grid-2" style="align-items:end">
       ${F({ id: `doc-${k}-exp`, label: 'Expiry date', bind: `d.docs.${k}.expiry`, type: 'date', rerender: true, disabled: doc.noExpiry, hint: doc.noExpiry ? 'Not needed. This document has no expiry date.' : 'Use the date printed on the document.' })}
       ${meta.noExp ? `<div style="padding-bottom:22px">${sw(`doc-${k}-noexp`, `d.docs.${k}.noExpiry`, 'No expiry date', 'Only if the document does not expire.')}</div>` : '<p class="hint" style="padding-bottom:22px">This document must have an expiry date.</p>'}
@@ -1191,7 +1202,7 @@ function setSecurity() {
 function setDocuments() {
   const rows = [{ id: 'licence', name: 'Trade licence', file: S.company.licence && S.company.licence.name, expiry: S.company.licenceExpiry, required: true, fixed: true }, ...S.companyDocs];
   return card('Company documents', `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Document</th><th>File</th><th>Status</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${rows.map(d => { const e = d.file ? expiry(d.expiry, d.noExpiry) : { tone: 'bad', label: 'Missing' }; return `<tr><td><div class="t-main"><b>${esc(d.name)} ${d.required ? '<span class="xs faint">· Required</span>' : ''}</b><span>${d.noExpiry ? 'No expiry date' : d.expiry ? 'Expires ' + fmt(d.expiry) : ''}</span></div></td><td data-m="sub">${d.file ? `<span class="mono">${esc(d.file)}</span>` : '<span class="faint">Not uploaded</span>'}</td><td data-m="side">${badge(e.label, e.tone)}</td><td class="t-actions">${d.fixed ? btn('Edit', { v: 'ghost', sm: true, go: 'settings-general' }) : `${btn(d.file ? 'Replace' : 'Upload', { v: 'ghost', sm: true, act: 'editCompanyDoc', id: d.id })}${btn('', { v: 'ghost', sm: true, icon: 'trash', act: 'removeCompanyDoc', id: d.id, title: 'Remove ' + d.name })}`}</td></tr>`; }).join('')}</tbody></table></div>`,
-    { raw: true, sub: 'Shared with every community you work in. Keep insurance and licences current to avoid delays.', action: btn('Add document', { v: 'primary', sm: true, icon: 'plus', act: 'addCompanyDoc' }) });
+    { raw: true, sub: 'Upload once and reuse: choose these on any permit instead of uploading again. Communities can see them, and we remind you before they expire.', action: btn('Add document', { v: 'primary', sm: true, icon: 'plus', act: 'addCompanyDoc' }) });
 }
 function setCommunities() {
   return card('Communities', S.communities.map(c => `<div class="list-row"><span class="avatar" style="border-radius:8px">${initials(c.name)}</span><span class="grow"><b>${esc(c.name)} ${c.id === S.community ? badge('Current', 'brand') : ''}</b><span>${esc(c.area)} · ${c.status === 'active' ? 'Access since ' + fmt(c.since) : 'Request sent · Waiting for approval'}</span></span>${c.status === 'active' ? `${c.id !== S.community ? btn('Switch', { v: 'ghost', sm: true, act: 'switchCommunity', id: c.id }) : ''}${btn('Leave', { v: 'danger-ghost', sm: true, act: 'leaveCommunity', id: c.id })}` : `${badge('Pending', 'info')}${btn('Withdraw', { v: 'ghost', sm: true, act: 'withdrawAccess', id: c.id })}`}</div>`).join(''),
@@ -1278,6 +1289,12 @@ function renderModal() {
     ${alertBox('info', 'Shared with the community', 'Company name, trade licence, TRN and your insurance documents.')}`,
     foot: btn('Cancel', { act: 'closeModal' }) + btn('Send request', { v: 'primary', icon: 'send', act: 'sendAccess' }) }); }
   if (m.type === 'drawer') return `<div class="overlay drawer-overlay" data-overlay style="place-items:stretch start"><div class="drawer left sidebar" role="dialog" aria-modal="true" aria-label="Menu" style="position:static;height:100%"><div class="side-inner">${route().startsWith('admin') ? adminSidebar() : sidebar(route())}</div></div></div>`;
+  if (m.type === 'pickDoc') {
+    const k = m.data.key, want = DOCS[k].name;
+    const list = companyDocList().sort((a, b) => (b.name === want) - (a.name === want));
+    return modalFrame({ title: 'Choose from company documents', sub: `For: ${want}. The file and its expiry date are copied into this permit.`, body: `<div class="stack-sm">${list.map(c => { const e = c.file ? expiry(c.expiry, c.noExpiry) : { tone: 'bad', label: 'Not uploaded' }; const off = !c.file || e.tone === 'bad'; return `<button type="button" class="select-row ${off ? 'disabled' : ''}" ${off ? 'disabled' : `data-act="useCompanyDoc" data-id="${c.id}"`}><span class="ic tone-neutral" style="width:34px;height:34px;border-radius:8px;display:grid;place-items:center">${ic('file')}</span><span class="grow"><b>${esc(c.name)}</b><span>${c.file ? esc(c.file) : 'No file yet'}</span></span>${c.name === want ? badge('Best match', 'info') : ''}${badge(e.label, e.tone)}</button>`; }).join('')}</div><p class="xs faint">Expired documents can’t be used. Renew them in Settings › Company documents.</p>`,
+      foot: btn('Cancel', { act: 'closeModal' }) + btn('Manage company documents', { v: 'ghost', go: 'settings-documents' }) });
+  }
   if (m.type === 'preview') return modalFrame({ title: esc(m.data.name), sub: 'File preview', size: 'lg', body: `<div class="paper" style="max-width:none;min-height:320px;place-content:center;text-align:center"><p>Preview of <b>${esc(m.data.name)}</b></p><p class="small">The live portal shows the uploaded file here.</p></div>`, foot: btn('Close', { act: 'closeModal' }) });
   return '';
 }
@@ -1569,6 +1586,13 @@ const ACT = {
     } });
     if (inModal) { ui.modal.onCancel = prev; }
   },
+  pickCompanyDoc(t) { ui.modal = { type: 'pickDoc', data: { key: t.dataset.id } }; render(); },
+  useCompanyDoc(t) {
+    const k = ui.modal.data.key, c = companyDocList().find(x => x.id === t.dataset.id), d = S.draft;
+    const before = d.docs[k];
+    d.docs[k] = { file: { name: c.file, size: 0, date: TODAY, source: 'company', companyId: c.id }, expiry: c.noExpiry ? '' : (c.expiry || ''), noExpiry: !!c.noExpiry };
+    ui.modal = null; persistDraft(); toast(`${c.name} added from company documents`, { undo: () => { d.docs[k] = before; persistDraft(); render(); } }); render();
+  },
   removeCommunityLogo() { const c = community(); openConfirm({ title: 'Remove the community logo?', message: 'Contractors will see your community initials instead.', confirmText: 'Remove logo', tone: 'danger', onConfirm: () => { const old = c.logo; c.logo = null; persist(); toast('Logo removed', { undo: () => { c.logo = old; persist(); render(); } }); } }); },
   removeLogo() { openConfirm({ title: 'Remove your logo?', message: 'Passes will show your company initials instead. Save changes to apply.', confirmText: 'Remove logo', tone: 'danger', onConfirm: () => { ui.form.company.logo = null; ui.dirty = true; } }); },
   discardForm() { openConfirm({ title: 'Discard unsaved changes?', message: 'Your edits on this page will be lost.', confirmText: 'Discard changes', tone: 'danger', onConfirm: () => { ui.form = initForm(ui.formTab); ui.dirty = false; ui.formErr = {}; } }); },
@@ -1687,6 +1711,16 @@ function onBound(el) {
 document.addEventListener('change', e => {
   const el = e.target;
   if (el.dataset.change && CHANGE[el.dataset.change]) { CHANGE[el.dataset.change](el); return; }
+  if (el.dataset.actChange === 'saveToCompany') {
+    const k = el.dataset.key, doc = S.draft.docs[k], name = DOCS[k].name;
+    el.checked = false;
+    if (!doc.noExpiry && !doc.expiry) { toast('Enter the expiry date first, or turn on “No expiry date”.', { err: true }); return; }
+    const existing = S.companyDocs.find(c => c.name === name);
+    const save = () => { const rec = { file: doc.file.name, expiry: doc.noExpiry ? '' : doc.expiry, noExpiry: !!doc.noExpiry }; if (existing) Object.assign(existing, rec); else S.companyDocs.push(Object.assign({ id: uid('cd'), name }, rec)); doc.file.savedToCompany = true; persistDraft(); toast(`${name} saved to company documents`); };
+    if (existing && existing.file) openConfirm({ title: `Replace your saved ${name}?`, message: `Company documents already has ${existing.file}. It will be replaced with ${doc.file.name}.`, confirmText: 'Replace saved copy', tone: 'warn', onConfirm: save });
+    else { save(); render(); }
+    return;
+  }
   if (el.dataset.actChange === 'toggleSel') { const k = el.dataset.kind, arr = S.draft[k]; S.draft[k] = el.checked ? [...new Set([...arr, el.value])] : arr.filter(x => x !== el.value); persistDraft(); render(); return; }
   if (el.dataset.ins !== undefined && el.type === 'checkbox') { ui.inspect[el.dataset.ins] = el.checked; return; }
   if (el.dataset.insFile !== undefined && el.files[0]) { ui.inspect.photos = el.files.length > 1 ? `${el.files.length} photos` : el.files[0].name; render(); return; }
