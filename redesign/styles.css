@@ -614,7 +614,7 @@ details.faq p { padding-bottom: 14px; color: var(--text-2); }
 .switch .txt { min-width: 0; }
 .logo .wm { display: inline; }
 @media (max-width: 960px) {
-  .topbar .popover { position: fixed; left: 16px; right: 16px; top: calc(64px + env(safe-area-inset-top, 0px)); width: auto; max-width: none; }
+  .topbar .popover { position: fixed; left: 16px; right: 16px; top: calc(64px + env(safe-area-inset-top, 0px)); width: auto; min-width: 0; max-width: none; }
 }
 .segmented { justify-self: start; }
 @media (max-width: 720px) {

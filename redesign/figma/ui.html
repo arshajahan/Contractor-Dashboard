@@ -1,0 +1,54 @@
+<style>
+  body { font: 13px/1.45 Inter, system-ui, sans-serif; margin: 0; padding: 16px; color: #142033; }
+  h1 { font-size: 15px; margin: 0 0 4px; }
+  p { margin: 0 0 12px; color: #4F5D72; }
+  label { display: flex; gap: 8px; align-items: center; margin: 6px 0; cursor: pointer; }
+  .file { display: block; padding: 14px; border: 1.5px dashed #C8D0DB; border-radius: 8px; text-align: center; margin-bottom: 12px; }
+  .file b { display: block; }
+  button { width: 100%; height: 36px; margin-top: 12px; border: 0; border-radius: 8px; background: #FFB624; color: #1C1404; font-weight: 600; font-size: 13px; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  #status { margin-top: 12px; min-height: 36px; color: #4F5D72; }
+  .bar { height: 4px; background: #EDF1F5; border-radius: 2px; overflow: hidden; margin-top: 6px; }
+  .bar i { display: block; height: 100%; width: 0; background: #FFB624; transition: width .2s; }
+</style>
+<h1>Buzzin redesign importer</h1>
+<p>Builds every redesign screen as editable Figma layers on this page.</p>
+<label class="file" for="f"><b id="fname">Choose buzzin-redesign-scenes.json</b><span id="finfo">It is in the same folder as this plugin.</span></label>
+<input id="f" type="file" accept=".json,application/json" hidden>
+<label><input type="checkbox" id="desktop" checked> Desktop screens (1440 px)</label>
+<label><input type="checkbox" id="mobile" checked> Mobile screens (390 px)</label>
+<label><input type="checkbox" id="styles" checked> Colour styles (light and dark)</label>
+<button id="go" disabled>Import editable screens</button>
+<div id="status"></div>
+<div class="bar"><i id="bar"></i></div>
+<script>
+  let scenes = null;
+  const $ = id => document.getElementById(id);
+  $('f').onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      scenes = JSON.parse(await file.text());
+      if (!scenes.screens) throw new Error('missing screens');
+      $('fname').textContent = file.name;
+      $('finfo').textContent = `${scenes.screens.length} screens · captured ${scenes.generated}`;
+      $('go').disabled = false;
+      $('status').textContent = '';
+    } catch (err) {
+      scenes = null; $('go').disabled = true;
+      $('status').textContent = 'This is not the Buzzin scenes file. Choose buzzin-redesign-scenes.json.';
+    }
+  };
+  $('go').onclick = () => {
+    $('go').disabled = true;
+    $('status').textContent = 'Loading fonts…';
+    parent.postMessage({ pluginMessage: { type: 'import', scenes, opts: { desktop: $('desktop').checked, mobile: $('mobile').checked, styles: $('styles').checked } } }, '*');
+  };
+  onmessage = e => {
+    const m = e.data.pluginMessage;
+    if (!m) return;
+    if (m.type === 'progress') { $('status').textContent = m.text; $('bar').style.width = Math.round(m.done / m.total * 100) + '%'; }
+    if (m.type === 'done') { $('status').textContent = m.text; $('bar').style.width = '100%'; $('go').disabled = false; }
+    if (m.type === 'error') { $('status').textContent = m.text; $('go').disabled = false; }
+  };
+</script>
