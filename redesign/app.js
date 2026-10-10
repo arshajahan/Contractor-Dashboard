@@ -142,9 +142,9 @@ function seed() {
   return {
     v: 3, community: 'buzzin', nextRef: 1049, nextVp: 2211,
     communities: [
-      { id: 'buzzin', name: 'Buzzin community', area: 'Dubai Silicon Oasis', status: 'active', since: '2025-02-11', email: 'permits@buzzin-community.example' },
-      { id: 'marina', name: 'Marina Gate', area: 'Dubai Marina', status: 'active', since: '2025-08-03', email: 'fm@marinagate.example' },
-      { id: 'palm', name: 'Palm Views', area: 'Palm Jumeirah', status: 'active', since: '2026-01-19', email: 'security@palmviews.example' },
+      { id: 'buzzin', name: 'Buzzin community', area: 'Dubai Silicon Oasis', status: 'active', since: '2025-02-11', email: 'permits@buzzin-community.example', logo: { data: 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22240%22%20height%3D%2272%22%20viewBox%3D%220%200%20240%2072%22%3E%3Ccircle%20cx%3D%2236%22%20cy%3D%2236%22%20r%3D%2226%22%20fill%3D%22%230E7C66%22/%3E%3Cpath%20d%3D%22M23%2042%2036%2022l13%2020z%22%20fill%3D%22%23fff%22/%3E%3Crect%20x%3D%2230%22%20y%3D%2238%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23fff%22/%3E%3Ctext%20x%3D%2274%22%20y%3D%2234%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-weight%3D%22700%22%20font-size%3D%2224%22%20fill%3D%22%230B3B32%22%3EBuzzin%3C/text%3E%3Ctext%20x%3D%2275%22%20y%3D%2255%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2213%22%20letter-spacing%3D%223%22%20fill%3D%22%230E7C66%22%3ECOMMUNITY%3C/text%3E%3C/svg%3E', tone: 'dark', bg: 'auto' } },
+      { id: 'marina', name: 'Marina Gate', area: 'Dubai Marina', status: 'active', since: '2025-08-03', email: 'fm@marinagate.example', logo: { data: 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22240%22%20height%3D%2272%22%20viewBox%3D%220%200%20240%2072%22%3E%3Cpath%20d%3D%22M10%2044c10-10%2020-10%2030%200s20%2010%2030%200%22%20stroke%3D%22%23fff%22%20stroke-width%3D%225%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22/%3E%3Cpath%20d%3D%22M10%2030c10-10%2020-10%2030%200s20%2010%2030%200%22%20stroke%3D%22%23fff%22%20stroke-width%3D%225%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%20opacity%3D%22.6%22/%3E%3Ctext%20x%3D%2284%22%20y%3D%2233%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-weight%3D%22700%22%20font-size%3D%2222%22%20letter-spacing%3D%221%22%20fill%3D%22%23fff%22%3EMARINA%3C/text%3E%3Ctext%20x%3D%2285%22%20y%3D%2255%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2215%22%20letter-spacing%3D%225%22%20fill%3D%22%23fff%22%3EGATE%3C/text%3E%3C/svg%3E', tone: 'light', bg: 'auto' } },
+      { id: 'palm', name: 'Palm Views', area: 'Palm Jumeirah', status: 'active', since: '2026-01-19', email: 'security@palmviews.example', logo: { data: 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2272%22%20height%3D%2272%22%20viewBox%3D%220%200%2072%2072%22%3E%3Cpath%20d%3D%22M36%2064V30%22%20stroke%3D%22%236B4F2A%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22/%3E%3Cpath%20d%3D%22M36%2030C26%2016%2014%2016%208%2022c10-2%2018%202%2028%208zM36%2030c10-14%2022-14%2028-8-10-2-18%202-28%208zM36%2030c-4-14%202-22%2010-24-6%206-8%2014-10%2024z%22%20fill%3D%22%232F8F46%22/%3E%3C/svg%3E', tone: 'dark', bg: 'auto' } },
       { id: 'creek', name: 'Creek Residences', area: 'Dubai Creek Harbour', status: 'pending', since: null, email: '' },
     ],
     directory: ['Arabian Ranches Community', 'Business Bay Towers', 'City Walk Residences', 'Jumeirah Lake Towers', 'Motor City Villas', 'The Greens', 'Town Square'],
@@ -348,6 +348,7 @@ function sidebar(r) {
   const nk = navKey(r);
   const action = passesHere().filter(p => p.status === 'changes').length;
   return `<div class="logo"><span class="wm">buzz<span>in</span></span><small>Contractor</small></div>
+  ${communityCard()}
   <nav class="side-nav" aria-label="Main">${NAV.map(([g, items]) => `<div class="side-label">${g}</div>${items.map(([k, l, i]) => `<button class="nav-item ${nk === k ? 'active' : ''}" data-go="${k}" ${nk === k ? 'aria-current="page"' : ''}>${ic(i)}<span>${l}</span>${k === 'permits' && action ? `<span class="count" title="${action} need your action">${action}</span>` : ''}</button>`).join('')}`).join('')}</nav>
   <div class="side-foot">
     <div class="side-help"><strong>Need help with a pass?</strong><p>${esc(community().name)} reviews all requests. Include your pass reference when you contact them.</p>${btn('Contact community', { go: 'help', sm: true, icon: 'mail' })}</div>
@@ -362,13 +363,13 @@ function communitySwitcher() {
   const list = S.communities.filter(x => !q || (x.name + x.area).toLowerCase().includes(q));
   return `<div class="pop-anchor">
     <button class="switcher" data-pop="community" aria-haspopup="listbox" aria-expanded="${open}" aria-label="Community: ${esc(c.name)}. Change community">
-      <span class="mark">${ic('building')}</span><span class="txt"><small>Community</small><b>${esc(c.name)}</b></span>${ic('down', 'chev')}
+      ${logoTile(c.logo, c.name, 'xs')}<span class="txt"><small>Community</small><b>${esc(c.name)}</b></span>${ic('down', 'chev')}
     </button>
     ${open ? `<div class="popover wide" role="dialog" aria-label="Choose a community">
       <div class="pop-search">${ic('search')}<input id="community-q" data-q="community" placeholder="Search communities" value="${esc(ui.q.community || '')}" autocomplete="off"></div>
       <div class="pop-head"><span class="eyebrow">Your communities</span><span class="xs faint">${S.communities.filter(x => x.status === 'active').length} active</span></div>
       <div class="pop-list" id="community-list">${list.length ? list.map(x => `<button class="pop-item" data-act="switchCommunity" data-id="${x.id}" aria-selected="${x.id === c.id}" ${x.status !== 'active' ? 'disabled' : ''}>
-        <span class="avatar" style="width:30px;height:30px;border-radius:8px;font-size:11px">${initials(x.name)}</span>
+        ${logoTile(x.logo, x.name, 'xs')}
         <span class="grow">${esc(x.name)}<small>${esc(x.area)}${x.status === 'pending' ? ' · Access pending approval' : ''}</small></span>${x.id === c.id ? ic('check', 'tick') : ''}</button>`).join('') : `<div class="pop-empty">No community matches “${esc(ui.q.community)}”</div>`}</div>
       <div class="pop-sep"></div>
       <button class="pop-item" data-act="requestAccess">${ic('plus')}<span class="grow">Request access to a community</span></button>
@@ -927,10 +928,25 @@ function formStatus(f) {
   return JSON.stringify(pubSubset(f)) === JSON.stringify(pubSubset(f.published)) ? [`Published · v${f.published.version}`, 'ok'] : ['Unpublished changes', 'warn'];
 }
 const curAdminForm = () => S.forms.find(x => x.id === route().slice(11));
+function communityCard() {
+  const c = community();
+  return `<div class="side-community" title="${esc(c.name)}">${logoTile(c.logo, c.name, 'md')}<div><b>${esc(c.name)}</b><span>${esc(c.area)}</span></div></div>`;
+}
 function adminSidebar() {
+  const r = route();
   return `<div class="logo"><span class="wm">buzz<span>in</span></span><small>Community admin</small></div>
-  <nav class="side-nav" aria-label="Admin"><div class="side-label">${esc(community().name)}</div><button class="nav-item active" data-go="admin-forms" aria-current="page">${ic('file')}<span>Permit forms</span></button></nav>
+  ${communityCard()}
+  <nav class="side-nav" aria-label="Admin"><div class="side-label">Manage</div>${[['admin-forms', 'Permit forms', 'file'], ['admin-profile', 'Community profile', 'building']].map(([k, l, i]) => { const on = k === 'admin-forms' ? r.startsWith('admin-form') : r === k; return `<button class="nav-item ${on ? 'active' : ''}" data-go="${k}" ${on ? 'aria-current="page"' : ''}>${ic(i)}<span>${l}</span></button>`; }).join('')}</nav>
   <div class="side-foot"><div class="side-help"><strong>Community admin view</strong><p>Design preview of the side community staff use. In the live product it has its own login.</p>${btn('Back to contractor portal', { go: 'home', sm: true, icon: 'arrowL' })}</div></div>`;
+}
+function pAdminProfile() {
+  const c = community(), L = c.logo;
+  return `${pageHead('Community profile', 'How your community appears to contractors in the Buzzin portal.')}
+  ${card('Logo', `<div class="logo-up">${logoTile(L, c.name, 'lg')}<div class="row"><label class="btn btn-secondary btn-sm" for="community-logo-up">${ic('upload')}${L ? 'Replace logo' : 'Upload logo'}</label><input class="file-input" id="community-logo-up" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp,.png,.jpg,.jpeg,.svg,.webp" data-file="community.logo">${L ? btn('Remove', { v: 'danger-ghost', sm: true, act: 'removeCommunityLogo' }) : ''}</div></div>
+    ${L ? `<div class="field"><span class="label">Background behind the logo</span><div class="segmented" role="radiogroup" aria-label="Logo background">${[['auto', `Automatic (${L.tone === 'light' ? 'dark' : 'light'})`], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<label><input type="radio" name="clogo-bg" value="${v}" data-change="communityLogoBg" ${(L.bg || 'auto') === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div><span class="hint">White logos get a dark background automatically. Change it if your logo is hard to see.</span></div>` : ''}
+    <div class="field"><span class="label">Where contractors see it</span><div class="row" style="gap:16px;align-items:center"><div class="side-community" style="width:240px">${logoTile(L, c.name, 'md')}<div><b>${esc(c.name)}</b><span>${esc(c.area)}</span></div></div><span class="small muted">Sidebar, community dropdown and the community list.</span></div></div>`,
+    { sub: 'PNG, JPG, SVG or WebP. Transparent PNGs work best, in any shape and colour.' })}
+  ${card('Contact details', `<dl class="dl"><dt>Community name</dt><dd>${esc(c.name)}</dd><dt>Area</dt><dd>${esc(c.area)}</dd><dt>Contractor support email</dt><dd class="mono">${esc(c.email || 'Not set')}</dd></dl>`)}`;
 }
 function pAdminForms() {
   const list = S.forms.filter(f => f.community === S.community);
@@ -1302,6 +1318,7 @@ function page(r) {
   if (r.startsWith('completion')) return pCompletion(r.slice(11));
   if (r.startsWith('settings')) return pSettings(r);
   if (r === 'admin-forms') return pAdminForms();
+  if (r === 'admin-profile') return pAdminProfile();
   if (r.startsWith('admin-form-')) return pAdminForm(r.slice(11));
   return ({ home: pHome, permits: pPermits, type: pType, visitor: pVisitor, help: pHelp, people: pPeople, vehicles: pVehicles }[r] || pHome)();
 }
@@ -1316,7 +1333,7 @@ function render() {
     <aside class="sidebar"><div class="side-inner">${r.startsWith('admin') ? adminSidebar() : sidebar(r)}</div></aside>
     <div class="main">${topbar()}<main class="content" id="main">${page(r)}</main>${bottomNav(r)}</div>
   </div>${rowMenuLayer()}${renderModal()}`;
-  document.title = (TITLES[r] || (r.startsWith('admin') ? 'Permit forms' : '') || (r.startsWith('settings') ? 'Settings' : r.startsWith('permit-') ? r.slice(7) : STEPS.find(s => s[0] === r)?.[1]) || 'Buzzin') + ' · Buzzin contractor portal';
+  document.title = (TITLES[r] || (r === 'admin-profile' ? 'Community profile' : r.startsWith('admin') ? 'Permit forms' : '') || (r.startsWith('settings') ? 'Settings' : r.startsWith('permit-') ? r.slice(7) : STEPS.find(s => s[0] === r)?.[1]) || 'Buzzin') + ' · Buzzin contractor portal';
   if (focusId) {
     const el = document.getElementById(focusId);
     if (el) { el.focus({ preventScroll: true }); if (sel && el.setSelectionRange) try { el.setSelectionRange(sel[0], sel[1]); } catch (e) { /* date inputs */ } }
@@ -1553,6 +1570,7 @@ const ACT = {
     } });
     if (inModal) { ui.modal.onCancel = prev; }
   },
+  removeCommunityLogo() { const c = community(); openConfirm({ title: 'Remove the community logo?', message: 'Contractors will see your community initials instead.', confirmText: 'Remove logo', tone: 'danger', onConfirm: () => { const old = c.logo; c.logo = null; persist(); toast('Logo removed', { undo: () => { c.logo = old; persist(); render(); } }); } }); },
   removeLogo() { openConfirm({ title: 'Remove your logo?', message: 'Passes will show your company initials instead. Save changes to apply.', confirmText: 'Remove logo', tone: 'danger', onConfirm: () => { ui.form.company.logo = null; ui.dirty = true; } }); },
   discardForm() { openConfirm({ title: 'Discard unsaved changes?', message: 'Your edits on this page will be lost.', confirmText: 'Discard changes', tone: 'danger', onConfirm: () => { ui.form = initForm(ui.formTab); ui.dirty = false; ui.formErr = {}; } }); },
   saveForm() {
@@ -1612,6 +1630,7 @@ const CHANGE = {
   showPw(el) { ui.pw.show = el.checked; render(); },
   signMode(el) { ui.signMode = el.value; if (ui.modal) ui.modal.errs = null; render(); },
   async sigBg(el) { const d = ui.modal.data; d.removeBg = el.checked; d.upload = await processSig(d.orig, d.removeBg); render(); },
+  communityLogoBg(el) { community().logo.bg = el.value; persist(); render(); },
   adminMode(el) { ui.adminMode = el.value; render(); },
   twofa(el) {
     el.checked = S.twofa;
@@ -1762,6 +1781,13 @@ document.addEventListener('dragover', e => { if (e.target.closest('[data-sigdrop
 function handleFile(bind, file) {
   if (!file) return;
   if (file.size > 10 * 1048576) { toast(`${file.name} is larger than 10 MB. Choose a smaller file.`, { err: true }); return; }
+  if (bind === 'community.logo') {
+    if (!/^image\/(png|jpe?g|svg\+xml|webp|gif)$/.test(file.type)) { toast('Choose a PNG, JPG, SVG or WebP image.', { err: true }); return; }
+    if (file.size > 5 * 1048576) { toast('This image is larger than 5 MB. Choose a smaller one.', { err: true }); return; }
+    const c = community(), old = c.logo;
+    prepareLogo(file).then(logo => { c.logo = logo; if (!persist()) { c.logo = old; return; } render(); toast(`Logo updated on a ${logo.tone === 'light' ? 'dark' : 'light'} background`, { undo: () => { c.logo = old; persist(); render(); } }); }).catch(e => toast(e.message, { err: true }));
+    return;
+  }
   if (bind === 'f.company.logo') {
     if (!/^image\/(png|jpe?g|svg\+xml|webp|gif)$/.test(file.type)) { toast('Choose a PNG, JPG, SVG or WebP image.', { err: true }); return; }
     if (file.size > 5 * 1048576) { toast('This image is larger than 5 MB. Choose a smaller one.', { err: true }); return; }

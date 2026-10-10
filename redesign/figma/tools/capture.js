@@ -88,6 +88,8 @@ const STATES = [
   ['53 Mobile menu', 'home', 'm', click('[data-act="openDrawer"]'), true],
   ['54 Overview – dark mode', 'home', 'd', null, false, 'dark'],
   ['55 Admin – Permit forms', 'admin-forms', 'dm'],
+  ['59 Admin – Community profile', 'admin-profile', 'd'],
+  ['60 Marina Gate – white logo on dark', 'home', 'd', async pg => { await pg.click('.switcher'); await pg.click('[data-act="switchCommunity"][data-id="marina"]'); await pg.waitForTimeout(300); }],
   ['56 Admin – Upload PDF form', 'admin-forms', 'd', seq(click('.page-head [data-act="adminNewForm"]'), click('[data-act="adminUseSample"]')), true],
   ['57 Admin – Place tick boxes', 'admin-form-frm1', 'd', seq(waitPdf, click('[data-act="adminSelect"] >> nth=1'))],
   ['58 Admin – Publish confirm', 'admin-form-frm1', 'd', seq(waitPdf, async pg => { await pg.click('[data-act="adminSelect"] >> nth=0'); await pg.fill('#af-label', 'I agree to the working hours'); await pg.press('#af-label', 'Tab'); await pg.waitForTimeout(100); }, click('.page-head [data-act="adminPublish"]')), true],

@@ -674,3 +674,14 @@ details.faq p { padding-bottom: 14px; color: var(--text-2); }
 .logo-tile.lg.initials { font-size: 24px; }
 .logo-tile.sm.initials { font-size: 12px; }
 .side-company .logo-tile.on-dark { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18); }
+
+/* ---------- Community co-branding ---------- */
+.side-community { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: var(--r-lg); background: var(--side-2); box-shadow: inset 0 0 0 1px var(--side-line); min-width: 0; }
+.side-community > div { display: grid; min-width: 0; line-height: 1.3; }
+.side-community b { color: var(--side-strong); font-size: 13px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.side-community span { font-size: 11.5px; color: var(--side-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.logo-tile.md { width: 84px; height: 44px; padding: 5px; border-radius: 8px; }
+.logo-tile.xs { width: 40px; height: 28px; padding: 3px; border-radius: 6px; }
+.logo-tile.md.initials, .logo-tile.xs.initials { font-size: 11.5px; }
+.side-community .logo-tile.on-dark { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18); }
+.switcher .logo-tile { flex: none; }
