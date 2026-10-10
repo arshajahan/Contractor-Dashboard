@@ -69,6 +69,22 @@ New settings sections: Company documents (insurance, VAT certificate… with exp
 
 Implementation notes: store each form's PDF, field positions as % of page size, and published version snapshots. Store the signed PDF (or the inputs to regenerate it) with the submitted request. The prototype uses pdf.js to show the PDF and pdf-lib to stamp it (both in `redesign/vendor/`). The sample PDF is in `redesign/samples/`.
 
+## Main dashboard and community access
+
+- **Main dashboard** (`#communities`, or account menu › Back to main dashboard): "Your communities" shows a card per community with its logo, area and access status. Only **Active** communities have **Open**.
+- Statuses: **Active** · **Waiting for approval** (Withdraw request) · **Access removed by the community** (shows the date, with Request access again) · **You left** (shows the date, with Request access again).
+- **No active community:** a clear empty state says "You don't have access to any community", explains that a community must give access before work permits can be requested, and offers **Request access to a community**. Removed or left communities are listed below it.
+- **Inside the portal:** if the current community removes access, or the contractor leaves it, every page except Settings and Help shows "You don't have access to [community]" with the reason and date, the community's contact email, **Request access again** and **Back to main dashboard**. Request pass is hidden.
+- **Leaving** (Settings › Communities, type LEAVE to confirm) cancels open passes there and returns to the main dashboard.
+
+## Document check and expiry reading
+
+- Every upload with an expiry date (permit documents, trade licence, company documents, employee IDs, vehicle registrations) shows a checking state: **Uploading… → Checking the document… → Reading the expiry date…**, with a progress bar.
+- **Date found:** it is filled into the Expiry date field with a note: "We read the expiry date … from the document. Reading can make mistakes, so check it and change the date below if it's wrong." The field always stays editable. Its hint says "Filled in from the document. You can change it", or "You changed the date read from the document" after an edit.
+- **No date found:** a note asks the contractor to enter it, or to turn on "No expiry date" where allowed.
+- Continue and Save wait until checks finish ("Wait for the … check to finish").
+- In the prototype the check is simulated in `checkDocument()` in `app.js`. Replace it with a call to the OCR service that returns `{ expiry: 'YYYY-MM-DD' | null }`.
+
 ## Company documents and permits
 
 - **Company documents** (Settings) holds company-wide files: trade licence, insurance, VAT certificate and others, each with an expiry date. Upload once. Communities can see them, and the contractor is reminded before they expire.

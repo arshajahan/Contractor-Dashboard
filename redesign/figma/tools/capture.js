@@ -21,6 +21,7 @@ const drawSig = async pg => {
 const completeDraft = async pg => {
   await pg.evaluate(() => { location.hash = 'documents'; }); await pg.waitForTimeout(250);
   await pg.setInputFiles('#up-scope', { name: 'scope-of-work-painting.pdf', mimeType: 'application/pdf', buffer: Buffer.alloc(184000) });
+  await pg.waitForTimeout(2800);
   await pg.click('label[for="doc-scope-noexp"]'); await pg.waitForTimeout(100);
   await pg.evaluate(() => { location.hash = 'pdf'; }); await waitPdf(pg);
   const n = await pg.locator('.pdf-box').count();
@@ -28,8 +29,12 @@ const completeDraft = async pg => {
   await drawSig(pg);
   await pg.click('label[for="f-sg-auth"]'); await pg.waitForTimeout(100);
   await pg.evaluate(() => { location.hash = 'review'; }); await pg.waitForTimeout(250);
+  await pg.evaluate(() => { document.getElementById('toasts').innerHTML = ''; });
 };
 const STATES = [
+  ['00 Main dashboard – your communities', 'communities', 'dm'],
+  ['00b Main dashboard – no access to any community', 'communities', 'dm', async pg => { await pg.evaluate(() => { const k = 'buzzin-redesign-v3'; const s = JSON.parse(localStorage.getItem(k)); s.communities.forEach(c => { if (c.status === 'active') { c.status = 'left'; c.changedOn = '2026-10-09'; } }); localStorage.setItem(k, JSON.stringify(s)); location.reload(); }); await pg.waitForTimeout(600); }],
+  ['00c Community removed access', 'home', 'dm', async pg => { await pg.evaluate(() => { const k = 'buzzin-redesign-v3'; const s = JSON.parse(localStorage.getItem(k)); s.community = 'greens'; localStorage.setItem(k, JSON.stringify(s)); location.reload(); }); await pg.waitForTimeout(600); }],
   ['01 Overview', 'home', 'dm'],
   ['02 Authorized passes', 'permits', 'dm'],
   ['03 Passes – row actions menu', 'permits', 'd', click('[data-act="rowMenu"] >> nth=1'), true],
@@ -52,6 +57,7 @@ const STATES = [
   ['20 Step 4 Workers', 'personnel', 'dm'],
   ['20b Workers – expiry warning', 'personnel', 'dm', async pg => { await pg.check('input[value="p3"]'); await pg.evaluate(() => { location.hash = 'documents'; }); await pg.waitForTimeout(150); await pg.evaluate(() => { location.hash = 'personnel'; }); await pg.waitForTimeout(250); }],
   ['21 Step 5 Documents', 'documents', 'dm'],
+  ['21c Documents – checking upload', 'documents', 'd', async pg => { await pg.setInputFiles('#up-scope', { name: 'scope-of-work.pdf', mimeType: 'application/pdf', buffer: Buffer.alloc(90000) }); await pg.waitForTimeout(900); }],
   ['21b Choose from company documents', 'documents', 'dm', click('[data-act="pickCompanyDoc"] >> nth=0'), true],
   ['22 Step 6 Sign terms', 'pdf', 'dm', waitPdf],
   ['22b Sign terms – boxes missing', 'pdf', 'd', seq(waitPdf, click('[data-act="wzNext"]'))],
@@ -67,6 +73,7 @@ const STATES = [
   ['30 Help & contact', 'help', 'dm'],
   ['31 Employees', 'people', 'dm'],
   ['32 Add employee', 'people', 'dm', click('.page-head [data-act="addPerson"]'), true],
+  ['32b Add employee – expiry read from ID', 'people', 'd', async pg => { await pg.click('.page-head [data-act="addPerson"]'); await pg.setInputFiles('#up-pid', { name: 'emirates-id.jpg', mimeType: 'image/jpeg', buffer: Buffer.alloc(40000) }); await pg.waitForTimeout(2800); }, true],
   ['33 Remove employee – confirm', 'people', 'd', click('[data-act="removePerson"] >> nth=0'), true],
   ['34 Vehicles', 'vehicles', 'dm'],
   ['35 Add vehicle', 'vehicles', 'd', click('.page-head [data-act="addVehicle"]'), true],
@@ -214,7 +221,14 @@ function extractor(overlay) {
     if (el.tagName === 'CANVAS') { out.push({ t: 'frame', name: 'Signature pad', x: r.left - ox, y: r.top - oy, w: r.width, h: r.height, fill: { r: 1, g: 1, b: 1, a: 1 }, stroke: { r: .78, g: .82, b: .86, a: 1 }, sw: [1, 1, 1, 1], radius: [8, 8, 8, 8], children: [] }); return; }
     if (el.tagName === 'IMG') {
       let data = null;
-      try { const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(r.width)); c.height = Math.max(1, Math.round(r.height)); c.getContext('2d').drawImage(el, 0, 0, c.width, c.height); data = /^data:image\/png/.test(el.src) ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', 0.85); } catch (e) { /* cross-origin */ }
+      try {
+        const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(r.width)); c.height = Math.max(1, Math.round(r.height));
+        // Respect object-fit: contain (logos) so images are not stretched.
+        let dx = 0, dy = 0, dw = c.width, dh = c.height;
+        if (cs.objectFit === 'contain' && el.naturalWidth && el.naturalHeight) { const k = Math.min(c.width / el.naturalWidth, c.height / el.naturalHeight); dw = el.naturalWidth * k; dh = el.naturalHeight * k; dx = (c.width - dw) / 2; dy = (c.height - dh) / 2; }
+        c.getContext('2d').drawImage(el, dx, dy, dw, dh);
+        data = el.closest('.pdf-page') ? c.toDataURL('image/jpeg', 0.85) : c.toDataURL('image/png');
+      } catch (e) { /* cross-origin */ }
       out.push(data ? { t: 'image', name: el.alt || 'Image', x: r.left - ox, y: r.top - oy, w: r.width, h: r.height, data } : { t: 'frame', name: 'Image', x: r.left - ox, y: r.top - oy, w: r.width, h: r.height, fill: { r: .93, g: .94, b: .96, a: 1 }, children: [] });
       return;
     }

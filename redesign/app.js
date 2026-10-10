@@ -146,6 +146,7 @@ function seed() {
       { id: 'marina', name: 'Marina Gate', area: 'Dubai Marina', status: 'active', since: '2025-08-03', email: 'fm@marinagate.example', logo: { data: 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22240%22%20height%3D%2272%22%20viewBox%3D%220%200%20240%2072%22%3E%3Cpath%20d%3D%22M10%2044c10-10%2020-10%2030%200s20%2010%2030%200%22%20stroke%3D%22%23fff%22%20stroke-width%3D%225%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22/%3E%3Cpath%20d%3D%22M10%2030c10-10%2020-10%2030%200s20%2010%2030%200%22%20stroke%3D%22%23fff%22%20stroke-width%3D%225%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%20opacity%3D%22.6%22/%3E%3Ctext%20x%3D%2284%22%20y%3D%2233%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-weight%3D%22700%22%20font-size%3D%2222%22%20letter-spacing%3D%221%22%20fill%3D%22%23fff%22%3EMARINA%3C/text%3E%3Ctext%20x%3D%2285%22%20y%3D%2255%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2215%22%20letter-spacing%3D%225%22%20fill%3D%22%23fff%22%3EGATE%3C/text%3E%3C/svg%3E', tone: 'light', bg: 'auto' } },
       { id: 'palm', name: 'Palm Views', area: 'Palm Jumeirah', status: 'active', since: '2026-01-19', email: 'security@palmviews.example', logo: { data: 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2272%22%20height%3D%2272%22%20viewBox%3D%220%200%2072%2072%22%3E%3Cpath%20d%3D%22M36%2064V30%22%20stroke%3D%22%236B4F2A%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22/%3E%3Cpath%20d%3D%22M36%2030C26%2016%2014%2016%208%2022c10-2%2018%202%2028%208zM36%2030c10-14%2022-14%2028-8-10-2-18%202-28%208zM36%2030c-4-14%202-22%2010-24-6%206-8%2014-10%2024z%22%20fill%3D%22%232F8F46%22/%3E%3C/svg%3E', tone: 'dark', bg: 'auto' } },
       { id: 'creek', name: 'Creek Residences', area: 'Dubai Creek Harbour', status: 'pending', since: null, email: '' },
+      { id: 'greens', name: 'The Greens', area: 'Emirates Living', status: 'revoked', since: '2025-05-02', changedOn: '2026-09-28', email: 'contractors@thegreens.example' },
     ],
     directory: ['Arabian Ranches Community', 'Business Bay Towers', 'City Walk Residences', 'Jumeirah Lake Towers', 'Motor City Villas', 'The Greens', 'Town Square'],
     permits: [
@@ -214,6 +215,7 @@ let S = null;
 try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
 if (!S || S.v !== 3) S = seed();
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { if (e && e.name === 'QuotaExceededError') toast('This browser is out of space for the preview. Use a smaller PDF.', { err: true }); return false; } };
+if (S.draft && S.draft.docs) Object.values(S.draft.docs).forEach(x => { if (x && x.file && x.file.status === 'checking') { x.file.status = 'done'; delete x.file.step; } });
 // Save the starting sample data so the preview behaves like stored data from the first load.
 (() => { try { if (!localStorage.getItem(KEY)) persist(); } catch (e) { /* storage blocked: preview still works */ } })();
 const ui = { pop: null, popRect: null, q: {}, modal: null, drawer: false, tab: 'all', search: {}, filters: {}, errs: {}, form: null, formTab: null, dirty: false, formErr: {}, signMode: 'draw', page: 1, pw: { current: '', next: '', confirm: '', show: false }, theme: null };
@@ -372,7 +374,7 @@ function topbar() {
     ${btn('', { icon: 'menu', v: 'ghost', act: 'openDrawer', title: 'Open menu', cls: 'menu-toggle' })}
     ${communityHeader()}
     <span class="spacer"></span>
-    ${route().startsWith('admin') ? `<span class="badge badge-brand hide-sm"><i></i>Community admin view</span>` : btn('Request pass', { v: 'primary', sm: true, icon: 'plus', go: 'type', cls: 'hide-sm' })}
+    ${route().startsWith('admin') ? `<span class="badge badge-brand hide-sm"><i></i>Community admin view</span>` : community().status !== 'active' ? '' : btn('Request pass', { v: 'primary', sm: true, icon: 'plus', go: 'type', cls: 'hide-sm' })}
     ${btn('', { icon: themeIcon, v: 'ghost', act: 'toggleTheme', title: 'Switch light or dark theme', cls: 'hide-sm' })}
     <div class="pop-anchor">
       <button class="btn btn-ghost btn-icon bell" data-pop="notif" aria-label="Notifications${unread ? `, ${unread} unread` : ''}">${ic('bell')}${unread ? '<span class="dot"></span>' : ''}</button>
@@ -579,6 +581,7 @@ function validate(step) {
     typeOf(d.type).docs.forEach(k => {
       const doc = d.docs[k] || {};
       if (!doc.file) e['doc-' + k] = `Upload the ${DOCS[k].name}.`;
+      else if (doc.file.status === 'checking') e['doc-' + k] = `Wait for the ${DOCS[k].name} check to finish.`;
       else if (!doc.noExpiry && !doc.expiry) e['doc-' + k] = `Enter the expiry date for the ${DOCS[k].name}, or mark it as having no expiry.`;
       else if (!doc.noExpiry && doc.expiry < TODAY) e['doc-' + k] = `The ${DOCS[k].name} has expired. Upload the renewed document.`;
     });
@@ -700,7 +703,28 @@ function pPersonnel() {
     <div class="row between"><span class="small muted"><b>${d.workers.length}</b> selected · Community limit 12 per pass</span>${d.workers.length ? btn('Clear selection', { v: 'ghost', sm: true, act: 'clearWorkers' }) : ''}</div>
     ${errOf('personnel', 'workers') ? `<span class="err">${ic('alert')}${esc(errOf('personnel', 'workers'))}</span>` : ''}`));
 }
-function uploader({ key, bind, label, accept = '.pdf,.jpg,.jpeg,.png', file }) {
+const CHECK_STEPS = ['Uploading…', 'Checking the document…', 'Reading the expiry date…'];
+function extractNote(x) {
+  if (!x) return '';
+  return x.expiry
+    ? `<div class="extract ok" role="status">${ic('check')}<span>We read the expiry date <b>${fmt(x.expiry)}</b> from the document. Reading can make mistakes, so check it and change the date below if it’s wrong.</span></div>`
+    : `<div class="extract warn" role="status">${ic('info')}<span>We couldn’t find an expiry date in this document. Enter it yourself${x.noExpOk ? ', or turn on “No expiry date” if it doesn’t expire' : ''}.</span></div>`;
+}
+// Hint under an expiry field that was filled in from the document. The field always stays editable.
+function readHint(file, value) {
+  const x = file && file.extracted;
+  if (!x || !x.expiry) return 'Use the date printed on the document.';
+  return value === x.expiry ? 'Filled in from the document. You can change it.' : 'You changed the date read from the document.';
+}
+function uploader(o) {
+  const file = o.file;
+  if (file && file.status === 'checking') {
+    const st = file.step || 0;
+    return `<div class="file-row checking" role="status" aria-live="polite"><span class="spin" aria-hidden="true"></span><span class="grow"><b>${esc(file.name)}</b><span>${CHECK_STEPS[st]}</span></span><span class="xs faint num">Step ${st + 1} of ${CHECK_STEPS.length}</span></div><div class="progress"><i style="width:${Math.round(((st + 1) / CHECK_STEPS.length) * 100)}%"></i></div>`;
+  }
+  return uploaderBase(o) + (file && file.extracted ? extractNote(file.extracted) : '');
+}
+function uploaderBase({ key, bind, label, accept = '.pdf,.jpg,.jpeg,.png', file }) {
   const id = 'up-' + key;
   return file && file.name
     ? `<div class="file-row"><span class="ic">${/\.(png|jpe?g)$/i.test(file.name) ? 'IMG' : 'PDF'}</span><span class="grow"><b>${esc(file.name)}</b><span>${file.source === 'company' ? 'From company documents' : `${sizeTxt(file.size) || 'Uploaded'} · Uploaded ${fmt(file.date || TODAY)}`}</span></span>${btn('', { v: 'ghost', sm: true, icon: 'eye', act: 'previewFile', id: file.name, title: 'Preview' })}<label class="btn btn-ghost btn-sm" for="${id}">Replace</label>${btn('', { v: 'danger-ghost', sm: true, icon: 'trash', act: 'removeFile', id: bind, title: 'Remove ' + file.name, attrs: `data-label="${esc(label)}"` })}<input class="file-input" type="file" id="${id}" accept="${accept}" data-file="${bind}"></div>`
@@ -712,7 +736,7 @@ function companyDocList() {
 function companyDocChoice(k, doc) {
   const name = DOCS[k].name, match = companyDocList().find(c => c.name === name && c.file);
   if (!doc.file) return `<div class="or-row"><span class="faint small">or</span>${btn('Choose from company documents', { sm: true, icon: 'briefcase', act: 'pickCompanyDoc', id: k })}${match ? `<span class="xs faint">Your saved ${esc(name)} is there.</span>` : ''}</div>`;
-  if (doc.file.source === 'company') return '';
+  if (doc.file.source === 'company' || doc.file.status === 'checking') return '';
   return `<label class="check"><input type="checkbox" data-act-change="saveToCompany" data-key="${k}" ${doc.file.savedToCompany ? 'checked disabled' : ''}><span>${doc.file.savedToCompany ? 'Saved to company documents' : 'Save to company documents for future permits'}<small>${doc.file.savedToCompany ? 'You can choose it on your next permit.' : 'Next time, choose it instead of uploading again.'}</small></span></label>`;
 }
 function docCard(k, required) {
@@ -724,7 +748,7 @@ function docCard(k, required) {
     <div id="f-doc-${k}" tabindex="-1">${uploader({ key: k, bind: `d.docs.${k}.file`, label: meta.name, file: doc.file })}</div>
     ${companyDocChoice(k, doc)}
     <div class="grid-2" style="align-items:end">
-      ${F({ id: `doc-${k}-exp`, label: 'Expiry date', bind: `d.docs.${k}.expiry`, type: 'date', rerender: true, disabled: doc.noExpiry, hint: doc.noExpiry ? 'Not needed. This document has no expiry date.' : 'Use the date printed on the document.' })}
+      ${F({ id: `doc-${k}-exp`, label: 'Expiry date', bind: `d.docs.${k}.expiry`, type: 'date', rerender: true, disabled: doc.noExpiry, hint: doc.noExpiry ? 'Not needed. This document has no expiry date.' : readHint(doc.file, doc.expiry) })}
       ${meta.noExp ? `<div style="padding-bottom:22px">${sw(`doc-${k}-noexp`, `d.docs.${k}.noExpiry`, 'No expiry date', 'Only if the document does not expire.')}</div>` : '<p class="hint" style="padding-bottom:22px">This document must have an expiry date.</p>'}
     </div>
     ${err ? `<span class="err">${ic('alert')}${esc(err)}</span>` : ''}`, { action: meta.template ? btn('Template', { v: 'ghost', sm: true, icon: 'download', act: 'download', id: meta.name + ' template' }) : '' });
@@ -1134,7 +1158,7 @@ function setGeneral() {
     </div></div>
     <div class="form-sec"><div><h3>Trade licence</h3><p>Communities check this before approving work. ${le.tone !== 'ok' ? badge(le.label, le.tone) : ''}</p></div><div class="grid-2">
       <div class="field full" id="c-licence"><span class="label">Trade licence<span class="req">*</span></span>${uploader({ key: 'licence', bind: 'f.company.licence', label: 'trade licence', file: c.licence })}${fe('licence') ? `<span class="err">${ic('alert')}${fe('licence')}</span>` : ''}</div>
-      ${F({ id: 'c-licexp', label: 'Trade licence expiry date', req: true, bind: 'f.company.licenceExpiry', type: 'date', err: fe('licenceExpiry'), hint: 'We remind you 30 days before it expires.' })}
+      ${F({ id: 'c-licexp', label: 'Trade licence expiry date', req: true, bind: 'f.company.licenceExpiry', type: 'date', err: fe('licenceExpiry'), hint: c.licence && c.licence.extracted && c.licence.extracted.expiry ? readHint(c.licence, c.licenceExpiry) : 'We remind you 30 days before it expires.', rerender: true })}
     </div></div>
     <div class="form-sec"><div><h3>Logo</h3><p>Appears on your passes and permits. PNG, JPG, SVG or WebP. Transparent PNGs work best, in any shape and colour.</p></div>
       <div class="stack-sm" style="gap:12px"><div class="logo-up">${logoTile(c.logo, c.name, 'lg')}<div class="row"><label class="btn btn-secondary btn-sm" for="logo-up">${ic('upload')}${c.logo ? 'Replace logo' : 'Upload logo'}</label><input class="file-input" id="logo-up" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp,.png,.jpg,.jpeg,.svg,.webp" data-file="f.company.logo">${c.logo ? btn('Remove', { v: 'danger-ghost', sm: true, act: 'removeLogo' }) : ''}</div></div>
@@ -1193,8 +1217,39 @@ function setDocuments() {
   return card('Company documents', `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Document</th><th>File</th><th>Status</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${rows.map(d => { const e = d.file ? expiry(d.expiry, d.noExpiry) : { tone: 'bad', label: 'Missing' }; return `<tr><td><div class="t-main"><b>${esc(d.name)} ${d.required ? '<span class="xs faint">· Required</span>' : ''}</b><span>${d.noExpiry ? 'No expiry date' : d.expiry ? 'Expires ' + fmt(d.expiry) : ''}</span></div></td><td data-m="sub">${d.file ? `<span class="mono">${esc(d.file)}</span>` : '<span class="faint">Not uploaded</span>'}</td><td data-m="side">${badge(e.label, e.tone)}</td><td class="t-actions">${d.fixed ? btn('Edit', { v: 'ghost', sm: true, go: 'settings-general' }) : `${btn(d.file ? 'Replace' : 'Upload', { v: 'ghost', sm: true, act: 'editCompanyDoc', id: d.id })}${btn('', { v: 'ghost', sm: true, icon: 'trash', act: 'removeCompanyDoc', id: d.id, title: 'Remove ' + d.name })}`}</td></tr>`; }).join('')}</tbody></table></div>`,
     { raw: true, sub: 'Upload once and reuse: choose these on any permit instead of uploading again. Communities can see them, and we remind you before they expire.', action: btn('Add document', { v: 'primary', sm: true, icon: 'plus', act: 'addCompanyDoc' }) });
 }
+const ACCESS = {
+  active: ['Active', 'ok'], pending: ['Waiting for approval', 'info'],
+  revoked: ['Access removed by the community', 'bad'], left: ['You left', 'neutral'],
+};
+function accessLine(c) {
+  if (c.status === 'active') return 'Access since ' + fmt(c.since);
+  if (c.status === 'pending') return 'Request sent · Waiting for the community to approve';
+  if (c.status === 'revoked') return `${esc(c.name)} removed your company’s access on ${fmt(c.changedOn)}`;
+  return `You left on ${fmt(c.changedOn)}`;
+}
+function accessActions(c, where) {
+  if (c.status === 'active') return where === 'hub' ? btn('Open', { v: 'primary', sm: true, act: 'openCommunity', id: c.id, iconR: 'arrowR' }) : btn('Leave', { v: 'danger-ghost', sm: true, act: 'leaveCommunity', id: c.id });
+  if (c.status === 'pending') return btn('Withdraw request', { v: 'ghost', sm: true, act: 'withdrawAccess', id: c.id });
+  return btn('Request access again', { sm: true, act: 'requestAgain', id: c.id });
+}
+/* Main dashboard: the contractor picks a community here before entering the portal. */
+function pHub() {
+  const active = S.communities.filter(c => c.status === 'active'), other = S.communities.filter(c => c.status !== 'active');
+  const tile = c => `<div class="hub-card ${c.status !== 'active' ? 'off' : ''}">${logoTile(c.logo, c.name, 'brand')}<div class="stack-sm" style="gap:4px"><b>${esc(c.name)}</b><span class="small muted">${esc(c.area)}</span>${badge(...ACCESS[c.status])}<span class="xs faint">${accessLine(c)}</span></div><div class="row">${accessActions(c, 'hub')}</div></div>`;
+  return `<div class="hub-head"><div><h1>Your communities</h1><p class="muted">Choose a community to request and manage work permits and visitor passes. Each community decides who has access.</p></div>${btn('Request access to a community', { icon: 'plus', act: 'requestAccess' })}</div>
+  ${active.length ? `<div class="hub-grid">${active.map(tile).join('')}</div>` : `<section class="card"><div class="empty" style="padding:48px 20px"><span class="ic">${ic('building')}</span><h2>You don’t have access to any community</h2><p class="small" style="max-width:52ch">You can’t request work permits until a community gives your company access. Request access, or ask the community’s management office to invite you.${other.some(c => c.status === 'revoked') ? ' Communities that removed your access are listed below.' : ''}</p>${btn('Request access to a community', { v: 'primary', icon: 'plus', act: 'requestAccess' })}</div></section>`}
+  ${other.length ? `<h2 style="margin-top:8px">Other communities</h2><div class="hub-grid">${other.map(tile).join('')}</div>` : ''}`;
+}
+function pNoAccess() {
+  const c = community(), [label, tone] = ACCESS[c.status];
+  const why = c.status === 'revoked' ? `${esc(c.name)} removed your company’s access on ${fmt(c.changedOn)}. You can’t request new passes here, and approved passes no longer work at the gate.`
+    : c.status === 'left' ? `Your company left ${esc(c.name)} on ${fmt(c.changedOn)}. You can’t request new passes here.`
+    : `${esc(c.name)} hasn’t approved your access yet. You can request passes once they do.`;
+  return `<div style="max-width:620px;margin:32px auto 0;width:100%">${card('', `<div class="stack" style="justify-items:center;text-align:center">${logoTile(c.logo, c.name, 'lg')}${badge(label, tone)}<h1>You don’t have access to ${esc(c.name)}</h1><p class="muted">${why}</p>${c.email ? `<p class="small muted">Questions? Contact the community at <span class="mono">${esc(c.email)}</span>.</p>` : ''}</div>`,
+    { foot: (c.status === 'pending' ? '' : btn('Request access again', { act: 'requestAgain', id: c.id })) + btn('Back to main dashboard', { v: 'primary', icon: 'arrowL', act: 'mainDashboard' }) })}</div>`;
+}
 function setCommunities() {
-  return card('Communities', S.communities.map(c => `<div class="list-row"><span class="avatar" style="border-radius:8px">${initials(c.name)}</span><span class="grow"><b>${esc(c.name)} ${c.id === S.community ? badge('Current', 'brand') : ''}</b><span>${esc(c.area)} · ${c.status === 'active' ? 'Access since ' + fmt(c.since) : 'Request sent · Waiting for approval'}</span></span>${c.status === 'active' ? `${btn('Leave', { v: 'danger-ghost', sm: true, act: 'leaveCommunity', id: c.id })}` : `${badge('Pending', 'info')}${btn('Withdraw', { v: 'ghost', sm: true, act: 'withdrawAccess', id: c.id })}`}</div>`).join(''),
+  return card('Communities', S.communities.map(c => `<div class="list-row">${logoTile(c.logo, c.name, 'xs')}<span class="grow"><b>${esc(c.name)} ${c.id === S.community && c.status === 'active' ? badge('Current', 'brand') : ''}</b><span>${esc(c.area)} · ${accessLine(c)}</span></span>${c.status !== 'active' ? badge(...ACCESS[c.status]) : ''}${accessActions(c, 'settings')}</div>`).join(''),
     { tight: true, sub: 'Communities where your company can request passes. To work in a different one, choose it on the main Buzzin dashboard.', action: btn('Request access', { v: 'primary', sm: true, icon: 'plus', act: 'requestAccess' }) });
 }
 function setNotifications() {
@@ -1240,7 +1295,7 @@ function renderModal() {
     ${F({ id: 'ps-email', label: 'Email', opt: true, bind: 'm.email', type: 'email' })}
     ${F({ id: 'ps-idtype', label: 'ID type', bind: 'm.idType', options: ['Emirates ID', 'Passport', 'GCC national ID'] })}
     ${F({ id: 'ps-idno', label: 'ID number', req: true, bind: 'm.idNo', err: E.idNo })}
-    ${F({ id: 'ps-idexp', label: 'ID expiry date', req: true, bind: 'm.idExpiry', type: 'date', err: E.idExpiry, hint: 'Must cover the work dates of every pass.' })}
+    ${F({ id: 'ps-idexp', label: 'ID expiry date', req: true, bind: 'm.idExpiry', type: 'date', rerender: true, err: E.idExpiry, hint: m.data.fileObj && m.data.fileObj.extracted && m.data.fileObj.extracted.expiry ? readHint(m.data.fileObj, m.data.idExpiry) : 'Must cover the work dates of every pass.' })}
     <div class="field full"><span class="label">ID copy<span class="req">*</span></span>${uploader({ key: 'pid', bind: 'm.fileObj', label: 'ID copy (front and back)', file: m.data.fileObj })}${E.file ? `<span class="err">${ic('alert')}${E.file}</span>` : ''}</div></div>`,
     foot: btn('Cancel', { act: 'closeModal' }) + btn(m.data.id ? 'Save changes' : 'Add employee', { v: 'primary', act: 'savePerson' }) }); }
   if (m.type === 'vehicle') { const E = m.errs || {}; return modalFrame({ title: m.data.id ? 'Edit vehicle' : 'Add vehicle', sub: 'Registration must be valid on the work dates.', size: 'lg', body: `<div class="grid-2">
@@ -1248,7 +1303,7 @@ function renderModal() {
     ${F({ id: 'vh-type', label: 'Vehicle type', req: true, bind: 'm.type', options: ['Car', 'Van', 'Pickup', 'Truck', 'Motorbike'] })}
     ${F({ id: 'vh-make', label: 'Make and model', opt: true, bind: 'm.make' })}
     ${F({ id: 'vh-color', label: 'Colour', opt: true, bind: 'm.color' })}
-    ${F({ id: 'vh-exp', label: 'Registration expiry', req: true, bind: 'm.regExpiry', type: 'date', err: E.regExpiry })}
+    ${F({ id: 'vh-exp', label: 'Registration expiry', req: true, bind: 'm.regExpiry', type: 'date', rerender: true, err: E.regExpiry, hint: readHint(m.data.fileObj, m.data.regExpiry) })}
     <div class="field full"><span class="label">Registration card (Mulkiya)<span class="req">*</span></span>${uploader({ key: 'vreg', bind: 'm.fileObj', label: 'registration card, both sides', file: m.data.fileObj })}${E.file ? `<span class="err">${ic('alert')}${E.file}</span>` : ''}</div></div>`,
     foot: btn('Cancel', { act: 'closeModal' }) + btn(m.data.id ? 'Save changes' : 'Add vehicle', { v: 'primary', act: 'saveVehicle' }) }); }
   if (m.type === 'sign') { const E = m.errs || {}; return modalFrame({ title: 'Add your signature', sub: 'Draw it or upload an image. It is added to the bottom of the signed document.', size: 'lg', body: `
@@ -1269,7 +1324,7 @@ function renderModal() {
   if (m.type === 'companyDoc') { const E = m.errs || {}; return modalFrame({ title: m.data.id ? 'Replace document' : 'Add company document', body: `
     ${F({ id: 'cd-name', label: 'Document', req: true, bind: 'm.name', options: ['Public liability insurance', "Workmen's compensation insurance", 'Contractor all-risk insurance', 'VAT registration certificate', 'Company profile', 'Chamber of commerce certificate', 'Other'], disabled: !!m.data.id })}
     <div class="field"><span class="label">File<span class="req">*</span></span>${uploader({ key: 'cdoc', bind: 'm.fileObj', label: 'document', file: m.data.fileObj })}${E.file ? `<span class="err">${ic('alert')}${E.file}</span>` : ''}</div>
-    ${F({ id: 'cd-exp', label: 'Expiry date', bind: 'm.expiry', type: 'date', disabled: m.data.noExpiry, err: E.expiry })}
+    ${F({ id: 'cd-exp', label: 'Expiry date', bind: 'm.expiry', type: 'date', rerender: true, disabled: m.data.noExpiry, err: E.expiry, hint: readHint(m.data.fileObj, m.data.expiry) })}
     ${sw('cd-noexp', 'm.noExpiry', 'No expiry date', 'Only for documents that never expire.')}`,
     foot: btn('Cancel', { act: 'closeModal' }) + btn('Save document', { v: 'primary', act: 'saveCompanyDoc' }) }); }
   if (m.type === 'access') { const E = m.errs || {}; return modalFrame({ title: 'Request access to a community', sub: 'The community reviews your company documents before giving access.', body: `
@@ -1333,10 +1388,16 @@ function render() {
   const a = document.activeElement;
   const focusId = a && a.id && a !== document.body ? a.id : null;
   const sel = focusId && a.selectionStart != null ? [a.selectionStart, a.selectionEnd] : null;
-  const inWizard = STEPS.some(s => s[0] === r) && S.draft;
+  if (r === 'communities') {
+    document.getElementById('app').innerHTML = `<div class="hub"><header class="hub-top"><div class="logo"><span class="wm">buzz<span>in</span></span><small>Contractor</small></div><span class="spacer"></span><span class="hub-company">${logoTile(S.company.logo, S.company.name, 'sm')}<span><b>${esc(S.company.name)}</b><span class="xs faint">${esc(S.profile.name)}</span></span></span>${btn('Sign out', { v: 'ghost', sm: true, icon: 'logout', act: 'signOut' })}</header><main class="hub-main" id="main">${pHub()}</main></div>${renderModal()}`;
+    document.title = 'Your communities · Buzzin';
+    return;
+  }
+  const blocked = !r.startsWith('admin') && community().status !== 'active' && !r.startsWith('settings') && r !== 'help';
+  const inWizard = !blocked && STEPS.some(s => s[0] === r) && S.draft;
   document.getElementById('app').innerHTML = `<div class="app ${inWizard ? 'has-actionbar' : ''}">
     <aside class="sidebar"><div class="side-inner">${r.startsWith('admin') ? adminSidebar() : sidebar(r)}</div></aside>
-    <div class="main">${topbar()}<main class="content" id="main">${page(r)}</main>${bottomNav(r)}</div>
+    <div class="main">${topbar()}<main class="content" id="main">${blocked ? pNoAccess() : page(r)}</main>${bottomNav(r)}</div>
   </div>${rowMenuLayer()}${renderModal()}`;
   document.title = (TITLES[r] || (r === 'admin-profile' ? 'Community profile' : r.startsWith('admin') ? 'Permit forms' : '') || (r.startsWith('settings') ? 'Settings' : r.startsWith('permit-') ? r.slice(7) : STEPS.find(s => s[0] === r)?.[1]) || 'Buzzin') + ' · Buzzin contractor portal';
   if (focusId) {
@@ -1390,7 +1451,9 @@ const ACT = {
   requestAccess() { ui.pop = null; ui.modal = { type: 'access', data: { community: '', message: '' } }; render(); },
   sendAccess() { const m = ui.modal; if (!m.data.community) { m.errs = { community: 'Choose a community.' }; render(); return; } openConfirm({ title: 'Send access request?', message: `${m.data.community} will see your company details and documents.`, confirmText: 'Send request', icon: 'send', onConfirm: () => { S.communities.push({ id: uid('c'), name: m.data.community, area: 'Dubai', status: 'pending', since: null, email: '' }); S.directory = S.directory.filter(x => x !== m.data.community); persist(); toast(`Access requested from ${m.data.community}`); } }); },
   withdrawAccess(t) { const c = S.communities.find(x => x.id === t.dataset.id); openConfirm({ title: `Withdraw request to ${c.name}?`, message: 'You can request access again later.', confirmText: 'Withdraw', tone: 'danger', icon: 'x', onConfirm: () => { S.communities = S.communities.filter(x => x !== c); S.directory.push(c.name); persist(); toast('Request withdrawn'); } }); },
-  leaveCommunity(t) { const c = S.communities.find(x => x.id === t.dataset.id); const open = S.permits.filter(p => p.community === c.id && ['review', 'changes', 'approved'].includes(p.status)).length; openConfirm({ title: `Leave ${c.name}?`, message: `Your company will lose access. ${open ? `${plural(open, 'open pass')} will be cancelled.` : 'You have no open passes there.'} You will need to request access again to return.`, confirmText: 'Leave community', tone: 'danger', icon: 'logout', requireText: 'LEAVE', onConfirm: () => { S.communities = S.communities.filter(x => x !== c); if (S.community === c.id) S.community = S.communities.find(x => x.status === 'active').id; persist(); toast(`You left ${c.name}`); } }); },
+  leaveCommunity(t) { const c = S.communities.find(x => x.id === t.dataset.id); const open = S.permits.filter(p => p.community === c.id && ['review', 'changes', 'approved'].includes(p.status)).length; openConfirm({ title: `Leave ${c.name}?`, message: `Your company will lose access. ${open ? `${plural(open, 'open pass', 'open passes')} will be cancelled.` : 'You have no open passes there.'} You will need to request access again to return.`, confirmText: 'Leave community', tone: 'danger', icon: 'logout', requireText: 'LEAVE', onConfirm: () => { c.status = 'left'; c.changedOn = TODAY; S.permits.forEach(p => { if (p.community === c.id && ['review', 'changes', 'approved'].includes(p.status)) p.status = 'cancelled'; }); persist(); toast(`You left ${c.name}`); if (c.id === S.community) go('communities'); } }); },
+  requestAgain(t) { const c = S.communities.find(x => x.id === t.dataset.id); openConfirm({ title: `Request access to ${c.name} again?`, message: `${c.name} will see your company details and documents and decide whether to give access.`, confirmText: 'Send request', icon: 'send', onConfirm: () => { c.status = 'pending'; c.changedOn = TODAY; persist(); toast(`Access requested from ${c.name}`); } }); },
+  openCommunity(t) { S.community = t.dataset.id; ui.tab = 'all'; persist(); go('home'); },
   kpi(t) { const k = t.dataset.id; if (k === 'expiring') { const e = expiringItems()[0]; go(e ? e.go : 'people'); return; } ui.tab = k; go('permits'); },
   tab(t) { ui.tab = t.dataset.id; render(); },
   rowMenu(t, e) { e.stopPropagation(); const k = 'row:' + t.dataset.id; if (ui.pop === k) { ui.pop = null; } else { ui.pop = k; ui.popRect = t.getBoundingClientRect(); } render(); },
@@ -1537,7 +1600,7 @@ const ACT = {
     if (!/^\+?[\d\s-]{8,}$/.test(d.phone.trim())) errs.phone = 'Enter a mobile number with country code.';
     if (!d.idNo.trim()) errs.idNo = 'Enter the ID number.';
     if (!d.idExpiry) errs.idExpiry = 'Enter the expiry date.'; else if (d.idExpiry < TODAY) errs.idExpiry = 'This ID has expired. Upload a valid ID.';
-    if (!d.fileObj) errs.file = 'Upload a copy of the ID.';
+    if (!d.fileObj) errs.file = 'Upload a copy of the ID.'; else if (d.fileObj.status === 'checking') errs.file = 'Wait for the document check to finish.';
     if (Object.keys(errs).length) { m.errs = errs; render(); return; }
     const rec = { name: d.name, role: d.role || 'Worker', phone: d.phone, email: d.email, idType: d.idType, idNo: d.idNo, idExpiry: d.idExpiry, file: d.fileObj.name };
     if (d.id) Object.assign(person(d.id), rec); else { const id = uid('p'); S.people.push(Object.assign({ id }, rec)); if (m.fromWizard) S.draft.workers.push(id); }
@@ -1551,7 +1614,7 @@ const ACT = {
     const m = ui.modal, d = m.data, errs = {};
     if (!d.plate.trim()) errs.plate = 'Enter the plate number.';
     if (!d.regExpiry) errs.regExpiry = 'Enter the registration expiry date.'; else if (d.regExpiry < TODAY) errs.regExpiry = 'This registration has expired.';
-    if (!d.fileObj) errs.file = 'Upload the registration card.';
+    if (!d.fileObj) errs.file = 'Upload the registration card.'; else if (d.fileObj.status === 'checking') errs.file = 'Wait for the document check to finish.';
     if (Object.keys(errs).length) { m.errs = errs; render(); return; }
     const rec = { plate: d.plate, type: d.type, make: d.make || d.type, color: d.color || '—', regExpiry: d.regExpiry, file: d.fileObj.name };
     if (d.id) Object.assign(vehicle(d.id), rec); else { const id = uid('v'); S.vehicles.push(Object.assign({ id }, rec)); if (m.fromWizard) { S.draft.vehicles.push(id); S.draft.noVehicles = false; } }
@@ -1570,7 +1633,7 @@ const ACT = {
     } });
     if (inModal) { ui.modal.onCancel = prev; }
   },
-  mainDashboard() { ui.pop = null; render(); toast('Opens the main Buzzin dashboard, where you choose a community. Not part of this preview.'); },
+  mainDashboard() { ui.pop = null; go('communities'); },
   pickCompanyDoc(t) { ui.modal = { type: 'pickDoc', data: { key: t.dataset.id } }; render(); },
   useCompanyDoc(t) {
     const k = ui.modal.data.key, c = companyDocList().find(x => x.id === t.dataset.id), d = S.draft;
@@ -1586,7 +1649,7 @@ const ACT = {
     if (tab === 'general') {
       if (!f.company.name.trim()) e.name = 'Enter the company name.';
       if (f.company.trn && !/^\d{8,15}$/.test(f.company.trn.replace(/\s/g, ''))) e.trn = 'TRN must be 8–15 digits.';
-      if (!f.company.licence) e.licence = 'Upload your trade licence.';
+      if (!f.company.licence) e.licence = 'Upload your trade licence.'; else if (f.company.licence.status === 'checking') e.licence = 'Wait for the trade licence check to finish.';
       if (!f.company.licenceExpiry) e.licenceExpiry = 'Enter the licence expiry date.'; else if (f.company.licenceExpiry < TODAY) e.licenceExpiry = 'This licence has expired. Upload the renewed licence.';
       ['legal', 'addr1', 'state', 'city', 'postal'].forEach(k => { if (!String(f.billing[k] || '').trim()) e[k] = 'This field is required.'; });
     }
@@ -1622,7 +1685,7 @@ const ACT = {
   editCompanyDoc(t) { const d = S.companyDocs.find(x => x.id === t.dataset.id); ui.modal = { type: 'companyDoc', data: { id: d.id, name: d.name, fileObj: d.file ? { name: d.file } : null, expiry: d.expiry || '', noExpiry: !!d.noExpiry } }; render(); },
   saveCompanyDoc() {
     const m = ui.modal, d = m.data, errs = {};
-    if (!d.fileObj) errs.file = 'Upload the file.';
+    if (!d.fileObj) errs.file = 'Upload the file.'; else if (d.fileObj.status === 'checking') errs.file = 'Wait for the document check to finish.';
     if (!d.noExpiry && !d.expiry) errs.expiry = 'Enter the expiry date, or turn on “No expiry date”.';
     if (Object.keys(errs).length) { m.errs = errs; render(); return; }
     const rec = { name: d.name, file: d.fileObj.name, expiry: d.noExpiry ? '' : d.expiry, noExpiry: d.noExpiry };
@@ -1813,11 +1876,48 @@ function handleFile(bind, file) {
     return;
   }
   if (!/\.(pdf|jpe?g|png)$/i.test(file.name)) { toast('Use a PDF, JPG or PNG file.', { err: true }); return; }
-  setB(bind, { name: file.name, size: file.size, date: TODAY });
+  const fileObj = { name: file.name, size: file.size, date: TODAY, status: 'checking', step: 0 };
+  const [fileHost, fileKey] = bindSlot(bind);
+  const target = expiryBindFor(bind);
+  const [expHost, expKey] = target ? bindSlot(target) : [null, null];
+  setB(bind, fileObj);
   if (bind.startsWith('d.')) persistDraft(); else if (bind.startsWith('f.')) ui.dirty = true;
   if (ui.modal && ui.modal.errs) delete ui.modal.errs.file;
   render();
-  toast(`${file.name} uploaded`);
+  checkDocument(fileObj, bind).then(result => {
+    if (fileHost[fileKey] !== fileObj) return; // replaced or removed while checking
+    fileObj.status = 'done'; delete fileObj.step; fileObj.extracted = result;
+    const noExp = expHost && expHost[expKey.replace(/expiry$/i, 'noExpiry')] === true;
+    if (result.expiry && expHost && !noExp) expHost[expKey] = result.expiry;
+    if (bind.startsWith('d.')) persistDraft(); else if (bind.startsWith('f.')) ui.dirty = true;
+    render();
+    toast(result.expiry ? `${file.name} checked. Expiry date filled in: ${fmt(result.expiry)}` : `${file.name} checked. Enter the expiry date yourself.`, { err: !result.expiry && !result.noExpOk });
+  });
+}
+// The object and key a bind path points at, so async work can tell whether it is still current.
+function bindSlot(b) {
+  const { obj, path } = bindRoot(b);
+  let o = obj;
+  for (let i = 0; i < path.length - 1; i++) o = o[path[i]] ?? (o[path[i]] = {});
+  return [o, path[path.length - 1]];
+}
+function expiryBindFor(bind) {
+  const m = /^d\.docs\.(\w+)\.file$/.exec(bind);
+  if (m) return `d.docs.${m[1]}.expiry`;
+  if (bind === 'f.company.licence') return 'f.company.licenceExpiry';
+  if (bind === 'm.fileObj' && ui.modal) return { person: 'm.idExpiry', vehicle: 'm.regExpiry', companyDoc: 'm.expiry' }[ui.modal.type] || null;
+  return null;
+}
+/* Design preview of the document check. The live product sends the file to the expiry-extraction service
+   and gets back { expiry: 'YYYY-MM-DD' | null }. Here the steps are timed and the date is made up. */
+function checkDocument(fileObj, bind) {
+  const tick = (ms, step) => new Promise(r => setTimeout(() => { if (fileObj.status === 'checking') { fileObj.step = step; render(); } r(); }, ms));
+  return tick(700, 1).then(() => tick(800, 2)).then(() => new Promise(r => setTimeout(r, 900))).then(() => {
+    const noExpOk = /docs\.(scope|drawings|hotwork|risk)\./.test(bind);
+    if (noExpOk || /scope|drawing|method|statement|profile/i.test(fileObj.name)) return { expiry: null, noExpOk: true };
+    let h = 0; for (const ch of fileObj.name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return { expiry: addDays(TODAY, 120 + (h % 640)), noExpOk: false };
+  });
 }
 document.addEventListener('dragover', e => { const z = e.target.closest('[data-drop]'); if (z) { e.preventDefault(); z.classList.add('drag'); } });
 document.addEventListener('dragleave', e => { const z = e.target.closest('[data-drop]'); if (z) z.classList.remove('drag'); });

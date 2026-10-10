@@ -705,3 +705,42 @@ button.select-row:disabled { cursor: not-allowed; }
 .switcher.static:hover { border-color: var(--border); background: var(--surface); }
 .readonly-field { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 4px 12px 4px 6px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface-2); }
 .readonly-field b { font-weight: 600; }
+
+/* ---------- Main dashboard: choose a community ---------- */
+.hub { min-height: 100vh; background: var(--bg); }
+.hub-top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; align-items: center; gap: 12px; height: 64px; padding: 0 24px; background: var(--side); color: var(--side-text); }
+.hub-top .spacer { flex: 1; }
+.hub-top .btn-ghost { color: var(--side-text); }
+.hub-top .btn-ghost:hover { background: var(--side-2); color: #fff; }
+.hub-company { display: flex; align-items: center; gap: 10px; }
+.hub-company > span:last-child { display: grid; line-height: 1.25; }
+.hub-company b { color: var(--side-strong); font-size: 13px; }
+.hub-main { max-width: 1040px; margin: 0 auto; padding: 32px 24px 64px; display: grid; gap: 20px; }
+.hub-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.hub-head > div { display: grid; gap: 4px; max-width: 60ch; }
+.hub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.hub-card { display: grid; gap: 14px; align-content: start; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); }
+.hub-card .logo-tile.brand { height: 72px; }
+.hub-card.off .logo-tile { opacity: .55; filter: grayscale(.6); }
+@media (max-width: 720px) { .hub-top { padding: 0 16px; } .hub-company > span:last-child { display: none; } .hub-main { padding: 20px 16px 48px; } }
+
+/* ---------- Document check (expiry extraction) ---------- */
+.file-row.checking { background: var(--info-soft); border-color: color-mix(in srgb, var(--info) 25%, transparent); }
+.spin { width: 22px; height: 22px; margin: 0 6px; border-radius: 50%; border: 2.5px solid color-mix(in srgb, var(--info) 25%, transparent); border-top-color: var(--info); animation: spin .8s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.file-row.checking + .progress { margin-top: -6px; }
+.extract { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; padding: 8px 10px; border-radius: var(--r); }
+.extract svg.i { margin-top: 2px; }
+.extract.ok { background: var(--ok-soft); color: var(--text); }
+.extract.ok svg.i { color: var(--ok); }
+.extract.warn { background: var(--warn-soft); color: var(--text); }
+.extract.warn svg.i { color: var(--warn); }
+.hub-card .badge { justify-self: start; }
+@media (prefers-reduced-motion: reduce) { .spin { animation: spin 2.4s linear infinite !important; } }
+.list-row .grow { min-width: 0; }
+@media (max-width: 720px) {
+  .list-row { flex-wrap: wrap; }
+  .list-row .grow { flex: 1 1 180px; }
+}
+/* Keep toasts clear of the sticky action bar and bottom navigation. */
+.toasts { bottom: 84px; }
