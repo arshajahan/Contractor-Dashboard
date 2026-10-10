@@ -213,7 +213,9 @@ function seed() {
 /* ================= State ================= */
 let S = null;
 try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
-if (!S || S.v !== 3) S = seed();
+// Saved preview data must have the current shape. Anything else (older versions, partial or broken data) starts fresh.
+const validState = x => !!(x && x.v === 3 && ['communities', 'permits', 'people', 'vehicles', 'companyDocs', 'forms', 'notifications', 'directory'].every(k => Array.isArray(x[k])) && x.communities.length && x.company && x.profile && x.billing && x.notifPrefs && x.visitor);
+if (!validState(S)) { S = null; S = seed(); } // seed() must not read the broken data
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { if (e && e.name === 'QuotaExceededError') toast('This browser is out of space for the preview. Use a smaller PDF.', { err: true }); return false; } };
 if (S.draft && S.draft.docs) Object.values(S.draft.docs).forEach(x => { if (x && x.file && x.file.status === 'checking') { x.file.status = 'done'; delete x.file.step; } });
 // Save the starting sample data so the preview behaves like stored data from the first load.
@@ -223,7 +225,7 @@ try { ui.theme = localStorage.getItem('buzzin-theme'); } catch (e) { /* ignore *
 const applyTheme = () => { if (ui.theme) document.documentElement.setAttribute('data-theme', ui.theme); else document.documentElement.removeAttribute('data-theme'); };
 applyTheme();
 
-const community = () => S.communities.find(c => c.id === S.community) || S.communities[0];
+const community = () => S.communities.find(c => c.id === S.community) || S.communities[0] || { id: 'none', name: 'No community', area: '', status: 'left', changedOn: TODAY, email: '' };
 const person = id => S.people.find(p => p.id === id);
 const vehicle = id => S.vehicles.find(v => v.id === id);
 function draftRow() {
@@ -1939,5 +1941,14 @@ window.addEventListener('hashchange', () => {
   const main = document.getElementById('main'); if (main && !location.hash.startsWith('#settings')) main.focus?.({ preventScroll: true });
 });
 window.addEventListener('beforeunload', e => { if (ui.dirty) { e.preventDefault(); e.returnValue = ''; } });
-if (!handleLegacy(route())) render();
+// Start-up. If saved preview data can't be read (for example it was saved by an older version), reset it and start again.
+try {
+  if (!handleLegacy(route())) render();
+} catch (err) {
+  console.error('Preview start-up failed, resetting sample data', err);
+  try { localStorage.removeItem(KEY); } catch (e) { /* storage blocked */ }
+  S = null; S = seed(); ui.modal = null; ui.pop = null;
+  try { render(); toast('Sample data was reset because the saved preview data could not be read.'); }
+  catch (err2) { document.getElementById('app').innerHTML = `<div class="boot"><b>The preview could not start.</b><span>${esc(err2.message)}</span><span>Open this file in Chrome, Edge or Safari.</span></div>`; }
+}
 })();
