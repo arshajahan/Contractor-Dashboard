@@ -4,7 +4,7 @@ This folder turns the HTML redesign into **editable Figma layers**: frames, text
 
 ## What you get
 
-- **54 desktop screens** (1440 px wide) and **36 mobile screens** (390 px wide). That covers every page, every popup and confirmation, the dropdowns and the dark mode.
+- **59 desktop screens** (1440 px wide) and **39 mobile screens** (390 px wide). That covers every page, every popup and confirmation, the dropdowns, the dark mode, the Sign terms step and the community admin form editor. The PDF pages and signatures come in as images.
 - **56 colour styles** named `Buzzin/Light/…` and `Buzzin/Dark/…` (brand, text, borders, success, warning, error and the rest).
 - Layers are named by role, for example `Button/primary – Submit request`, `Card`, `Field`, `Modal` and `Community dropdown`.
 

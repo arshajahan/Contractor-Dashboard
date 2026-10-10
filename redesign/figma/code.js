@@ -41,6 +41,12 @@ function build(n, parent) {
     else if (n.align === 'right' || n.align === 'end') node.textAlignHorizontal = 'RIGHT';
     if (n.multi) { node.resize(clamp(n.w), clamp(n.h)); node.textAutoResize = 'HEIGHT'; }
     else node.textAutoResize = 'WIDTH_AND_HEIGHT';
+  } else if (n.t === 'image') {
+    node = figma.createRectangle();
+    node.name = n.name || 'Image';
+    node.resize(clamp(n.w), clamp(n.h));
+    try { const img = figma.createImage(figma.base64Decode(n.data.split(',')[1])); node.fills = [{ type: 'IMAGE', imageHash: img.hash, scaleMode: 'FILL' }]; }
+    catch (e) { node.fills = [solid({ r: .93, g: .94, b: .96, a: 1 })]; }
   } else if (n.t === 'svg') {
     try { node = figma.createNodeFromSvg(n.svg); node.name = n.name || 'Icon'; node.fills = []; }
     catch (e) { node = figma.createRectangle(); node.resize(clamp(n.w), clamp(n.h)); node.name = 'Icon'; }

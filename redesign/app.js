@@ -4,8 +4,10 @@
 'use strict';
 
 /* ================= Utilities ================= */
+// The PDF viewer runs on the page itself (vendor/pdf.worker.min.js is loaded as a script), so it also works from a local file.
+if (window.pdfjsLib) window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
 const TODAY = '2026-10-09';
-const KEY = 'buzzin-redesign-v2';
+const KEY = 'buzzin-redesign-v3';
 const ICONS = {
   home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   pass: '<circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
@@ -124,21 +126,21 @@ const GEO = {
   Bahrain: { Capital: ['Manama'], Muharraq: ['Muharraq'] },
   Kuwait: { 'Al Asimah': ['Kuwait City'], Hawalli: ['Salmiya', 'Hawalli'] },
 };
-const STEPS = [['details', 'Work details'], ['materials', 'Materials'], ['workvehicles', 'Vehicles'], ['personnel', 'Workers'], ['documents', 'Documents'], ['pdf', 'Fill & sign'], ['review', 'Review & submit']];
-const PDF_PAGES = ['Work declaration', 'Site safety checklist', 'Contractor declaration'];
-const ROLES = { Owner: 'Full access, including billing and closing the account.', Admin: 'Manage passes, employees, vehicles, documents and team.', Requester: 'Create and submit passes. Cannot change company settings.', Viewer: 'View passes and download approved permits only.' };
+const STEPS = [['details', 'Work details'], ['materials', 'Materials'], ['workvehicles', 'Vehicles'], ['personnel', 'Workers'], ['documents', 'Documents'], ['pdf', 'Sign terms'], ['review', 'Review & submit']];
+const SAMPLE_FIELDS = [{"id": "b1", "page": 1, "x": 11.34, "y": 27.45, "size": 2.8, "label": "I agree: Working hours", "required": true}, {"id": "b2", "page": 1, "x": 11.34, "y": 38.68, "size": 2.8, "label": "I agree: Access and ID", "required": true}, {"id": "b3", "page": 1, "x": 11.34, "y": 49.92, "size": 2.8, "label": "I agree: Health and safety", "required": true}, {"id": "b4", "page": 1, "x": 11.34, "y": 59.63, "size": 2.8, "label": "I agree: Noise and dust", "required": true}, {"id": "b5", "page": 2, "x": 11.34, "y": 18.66, "size": 2.8, "label": "I agree: Waste and cleaning", "required": true}, {"id": "b6", "page": 2, "x": 11.34, "y": 28.38, "size": 2.8, "label": "I agree: Lifts and common areas", "required": true}, {"id": "b7", "page": 2, "x": 11.34, "y": 38.09, "size": 2.8, "label": "I agree: Damage and liability", "required": true}, {"id": "b8", "page": 2, "x": 11.34, "y": 47.81, "size": 2.8, "label": "I agree: Breach of terms", "required": true}];
+const ALL_TYPES = PERMIT_TYPES.map(t => t.id);
 
 function blankDraft(prefill) {
   return Object.assign({
     id: uid('DRAFT-'), community: S ? S.community : 'buzzin', property: '', units: [], type: 'general', title: '', description: '',
     contact: '', phone: '', from: '', to: '', start: '09:00', end: '17:00', amc: 'no',
     materials: [], noMaterials: false, vehicles: [], noVehicles: false, trips: '', workers: [],
-    docs: {}, pdf: { p1: {}, p2: {}, p3: {} }, signature: null, consent: false, reached: 0, saved: TODAY,
+    docs: {}, ticks: {}, signer: { name: S ? S.profile.name : '', position: S ? S.profile.title : '', sig: null, auth: false }, consent: false, reached: 0, saved: TODAY,
   }, prefill || {});
 }
 function seed() {
   return {
-    v: 2, community: 'buzzin', nextRef: 1049, nextVp: 2211,
+    v: 3, community: 'buzzin', nextRef: 1049, nextVp: 2211,
     communities: [
       { id: 'buzzin', name: 'Buzzin community', area: 'Dubai Silicon Oasis', status: 'active', since: '2025-02-11', email: 'permits@buzzin-community.example' },
       { id: 'marina', name: 'Marina Gate', area: 'Dubai Marina', status: 'active', since: '2025-08-03', email: 'fm@marinagate.example' },
@@ -179,20 +181,14 @@ function seed() {
       { id: 'cd3', name: 'VAT registration certificate', noExpiry: true, file: 'vat-certificate.pdf' },
       { id: 'cd4', name: 'Company profile', noExpiry: true, file: null },
     ],
-    team: [
-      { id: 't1', name: 'Alex Morgan', email: 'alex@samplecontracting.ae', role: 'Owner', status: 'active', last: 'Today, 08:42' },
-      { id: 't2', name: 'Priya Nair', email: 'priya@samplecontracting.ae', role: 'Admin', status: 'active', last: 'Yesterday, 17:10' },
-      { id: 't3', name: 'Sam Lee', email: 'sam@samplecontracting.ae', role: 'Requester', status: 'invited', last: 'Invite sent 7 Oct' },
-    ],
     notifPrefs: {
       submitted: { email: true, sms: false, app: true }, changes: { email: true, sms: true, app: true }, approved: { email: true, sms: true, app: true },
       expiring: { email: true, sms: false, app: true }, inspection: { email: true, sms: false, app: true }, news: { email: false, sms: false, app: false },
     },
     twofa: false,
-    sessions: [
-      { id: 's1', device: 'Chrome on Windows', where: 'Dubai, UAE', when: 'Active now', current: true, icon: 'monitor' },
-      { id: 's2', device: 'Buzzin app on iPhone', where: 'Dubai, UAE', when: '2 hours ago', icon: 'phone' },
-      { id: 's3', device: 'Edge on Windows', where: 'Sharjah, UAE', when: '3 days ago', icon: 'monitor' },
+    forms: [
+      { id: 'frm1', community: 'buzzin', name: 'Contractor terms & community guidelines', fileName: 'buzzin-contractor-terms-v3.pdf', pdf: 'sample', pdfRev: 0, fields: clone(SAMPLE_FIELDS), appliesTo: [...ALL_TYPES], placement: 'bottom', updated: '2026-09-01',
+        published: { version: 3, name: 'Contractor terms & community guidelines', fileName: 'buzzin-contractor-terms-v3.pdf', pdf: 'sample', fields: clone(SAMPLE_FIELDS), appliesTo: [...ALL_TYPES], placement: 'bottom', at: '2026-09-01' } },
     ],
     notifications: [
       { id: 'n1', title: 'Changes requested on BZ-1042', body: 'Office fit-out needs a revised Scope of Work Form.', when: '2 h ago', go: 'permit-BZ-1042', unread: true },
@@ -206,6 +202,7 @@ function seed() {
       from: '2026-10-14', to: '2026-10-16',
       materials: [{ id: 'm1', name: 'Emulsion paint', kind: 'Material', qty: 6, unit: 'buckets', removed: 'Yes', notes: '' }, { id: 'm2', name: 'Step ladder', kind: 'Equipment', qty: 1, unit: 'pcs', removed: 'Yes', notes: '' }],
       vehicles: ['v1'], trips: '2', workers: ['p2', 'p5'], reached: 3, saved: TODAY,
+      signer: { name: 'Alex Morgan', position: 'Operations manager', sig: null, auth: false },
     }),
     visitor: { name: '', company: 'Sample Contracting', phone: '', idType: 'Emirates ID', idNo: '', purpose: 'Site survey', unit: '', date: '', from: '10:00', to: '12:00', plate: '', notes: '' },
   };
@@ -214,8 +211,8 @@ function seed() {
 /* ================= State ================= */
 let S = null;
 try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
-if (!S || S.v !== 2) S = seed();
-const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* preview without storage */ } };
+if (!S || S.v !== 3) S = seed();
+const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { if (e && e.name === 'QuotaExceededError') toast('This browser is out of space for the preview. Use a smaller PDF.', { err: true }); return false; } };
 const ui = { pop: null, popRect: null, q: {}, modal: null, drawer: false, tab: 'all', search: {}, filters: {}, errs: {}, form: null, formTab: null, dirty: false, formErr: {}, signMode: 'draw', page: 1, pw: { current: '', next: '', confirm: '', show: false }, theme: null };
 try { ui.theme = localStorage.getItem('buzzin-theme'); } catch (e) { /* ignore */ }
 const applyTheme = () => { if (ui.theme) document.documentElement.setAttribute('data-theme', ui.theme); else document.documentElement.removeAttribute('data-theme'); };
@@ -321,6 +318,7 @@ function navKey(r) {
   if (r.startsWith('permit-') || r.startsWith('completion') || r === 'permits') return 'permits';
   if (r === 'type' || r === 'visitor' || r.startsWith('submitted') || STEPS.some(s => s[0] === r)) return 'type';
   if (r.startsWith('settings')) return 'settings';
+  if (r.startsWith('admin')) return 'admin';
   return r;
 }
 function sidebar(r) {
@@ -362,7 +360,7 @@ function topbar() {
     ${btn('', { icon: 'menu', v: 'ghost', act: 'openDrawer', title: 'Open menu', cls: 'menu-toggle' })}
     ${communitySwitcher()}
     <span class="spacer"></span>
-    ${btn('Request pass', { v: 'primary', sm: true, icon: 'plus', go: 'type', cls: 'hide-sm' })}
+    ${route().startsWith('admin') ? `<span class="badge badge-brand hide-sm"><i></i>Community admin view</span>` : btn('Request pass', { v: 'primary', sm: true, icon: 'plus', go: 'type', cls: 'hide-sm' })}
     ${btn('', { icon: themeIcon, v: 'ghost', act: 'toggleTheme', title: 'Switch light or dark theme', cls: 'hide-sm' })}
     <div class="pop-anchor">
       <button class="btn btn-ghost btn-icon bell" data-pop="notif" aria-label="Notifications${unread ? `, ${unread} unread` : ''}">${ic('bell')}${unread ? '<span class="dot"></span>' : ''}</button>
@@ -374,6 +372,7 @@ function topbar() {
         <button class="pop-item" data-go="settings-profile">${ic('user')}<span class="grow">My profile</span></button>
         <button class="pop-item" data-go="settings">${ic('briefcase')}<span class="grow">Company settings</span></button>
         <button class="pop-item" data-go="settings-security">${ic('lock')}<span class="grow">Password & security</span></button>
+        <button class="pop-item" data-go="admin-forms">${ic('building')}<span class="grow">Community admin view<small>Design preview</small></span></button>
         <button class="pop-item" data-act="toggleTheme">${ic(themeIcon)}<span class="grow">Switch theme</span></button>
         <div class="pop-sep"></div><button class="pop-item danger" data-act="signOut">${ic('logout')}<span class="grow">Sign out</span></button></div>` : ''}
     </div>
@@ -560,21 +559,27 @@ function validate(step) {
   if (step === 'workvehicles' && !d.noVehicles && !d.vehicles.length) e.vehicles = 'Select a vehicle, or turn on “No vehicles needed”.';
   if (step === 'personnel') {
     if (!d.workers.length) e.workers = 'Select at least one worker.';
-    const bad = d.workers.map(person).filter(p => p && d.to && p.idExpiry < d.to);
-    if (bad.length) e.workers = `${bad.map(p => p.name).join(', ')}: ID expires before the work ends (${fmt(d.to)}). Update the ID or remove the worker.`;
+    const bad = d.workers.map(person).filter(p => p && p.idExpiry < TODAY);
+    if (bad.length) e.workers = `${bad.map(p => p.name).join(', ')}: ID has expired. Upload the renewed ID or remove the worker.`;
   }
   if (step === 'documents') {
     typeOf(d.type).docs.forEach(k => {
       const doc = d.docs[k] || {};
       if (!doc.file) e['doc-' + k] = `Upload the ${DOCS[k].name}.`;
       else if (!doc.noExpiry && !doc.expiry) e['doc-' + k] = `Enter the expiry date for the ${DOCS[k].name}, or mark it as having no expiry.`;
-      else if (!doc.noExpiry && d.to && doc.expiry < d.to) e['doc-' + k] = `The ${DOCS[k].name} expires before the work ends.`;
+      else if (!doc.noExpiry && doc.expiry < TODAY) e['doc-' + k] = `The ${DOCS[k].name} has expired. Upload the renewed document.`;
     });
   }
   if (step === 'pdf') {
-    [1, 2, 3].forEach(i => { if (!d.pdf['p' + i].agree) e['pdf' + i] = `Tick the confirmation on page ${i}.`; });
-    if (!d.pdf.p1.company) e.pdf1 = 'Enter the company name on page 1.';
-    if (!d.signature) e.signature = 'Add your signature on page 3.';
+    const forms = formsFor(d);
+    forms.forEach(f => { const t = (d.ticks || {})[formKey(f)] || {}; const miss = f.published.fields.filter(x => x.required && !t[x.id]).length; if (miss) e['form-' + f.id] = `Tick ${plural(miss, 'more box', 'more boxes')} in “${f.published.name}”.`; });
+    if (forms.length) {
+      const g = d.signer || {};
+      if (!(g.name || '').trim()) e['sg-name'] = 'Enter your full name.';
+      if (!(g.position || '').trim()) e['sg-position'] = 'Enter your position, for example Site supervisor.';
+      if (!g.sig) e['sg-sig'] = 'Draw or upload your signature.';
+      if (!g.auth) e['sg-auth'] = 'Confirm you are authorised to sign.';
+    }
   }
   if (step === 'review' && !d.consent) e.consent = 'Confirm the information is correct.';
   return e;
@@ -618,7 +623,7 @@ const WZ_SUB = {
   workvehicles: 'Choose the vehicles that need to enter the community.',
   personnel: 'Choose who will work on site. Their IDs must be valid for every work date.',
   documents: 'Upload the documents this permit type needs.',
-  pdf: 'Complete each page of the community form, then sign.',
+  pdf: 'Read the community’s terms, tick every box, then sign once at the bottom.',
   review: 'Check everything before you send it. You cannot edit while it is under review.',
 };
 function pDetails() {
@@ -664,7 +669,7 @@ function selectRows(kind) {
 }
 function pVehiclesStep() {
   const d = S.draft;
-  return wizard('workvehicles', card('Vehicles for this work', `
+  return wizard('workvehicles', expiryAlert(expiryWarnings(d, 'vehicles')) + card('Vehicles for this work', `
     ${sw('f-vehicles', 'd.noVehicles', 'No vehicles needed', 'Turn on if workers arrive on foot or by public transport.')}
     ${d.noVehicles ? '' : `<div class="stack-sm">${selectRows('vehicles')}</div>
     <div class="row between"><div style="max-width:240px">${F({ id: 'f-trips', label: 'Expected trips', opt: true, bind: 'd.trips', type: 'number', attrs: 'min="1"' })}</div>${btn('Add a vehicle', { icon: 'plus', act: 'addVehicle' })}</div>`}
@@ -672,7 +677,7 @@ function pVehiclesStep() {
 }
 function pPersonnel() {
   const d = S.draft;
-  return wizard('personnel', card('Workers on site', `
+  return wizard('personnel', expiryAlert(expiryWarnings(d, 'workers')) + card('Workers on site', `
     <div class="row between"><div class="search grow" style="max-width:360px">${ic('search')}<input class="input" id="f-workers" data-search="workers" placeholder="Search employees" value="${esc(ui.search.workers || '')}" aria-label="Search employees"></div>${btn('Add employee', { icon: 'plus', act: 'addPerson' })}</div>
     <div class="stack-sm" id="workers-list">${selectRows('workers')}</div>
     <div class="row between"><span class="small muted"><b>${d.workers.length}</b> selected · Community limit 12 per pass</span>${d.workers.length ? btn('Clear selection', { v: 'ghost', sm: true, act: 'clearWorkers' }) : ''}</div>
@@ -700,39 +705,244 @@ function docCard(k, required) {
 function pDocuments() {
   const t = typeOf(S.draft.type);
   const done = t.docs.filter(k => S.draft.docs[k] && S.draft.docs[k].file).length;
-  return wizard('documents', `${alertBox(done === t.docs.length ? 'ok' : 'info', `${done} of ${t.docs.length} required documents uploaded`, `Documents for ${t.name} at ${esc(community().name)}. Only documents set up by the community are shown.`)}
+  return wizard('documents', `${expiryAlert(expiryWarnings(S.draft, 'documents'))}${alertBox(done === t.docs.length ? 'ok' : 'info', `${done} of ${t.docs.length} required documents uploaded`, `Documents for ${t.name} at ${esc(community().name)}. Only documents set up by the community are shown.`)}
     ${t.docs.map(k => docCard(k, true)).join('')}${t.optional.map(k => docCard(k, false)).join('')}`);
 }
+/* ================= Community PDF forms (terms & guidelines) ================= */
+// Signature block position on the page, in % of page size.
+const SIG_AREA = { bottom: { left: 9, top: 86, width: 82, height: 9 }, newpage: { left: 9, top: 13, width: 82, height: 12 } };
+function formKey(f) { return `${f.id}@${f.published.version}`; }
+function formsFor(d) { return S.forms.filter(f => f.community === d.community && f.published && f.published.appliesTo.includes(d.type)); }
+const b64ToBytes = b64 => { const s = atob(b64); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
+const bytesToB64 = u => { let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+const formPdf = pdf => b64ToBytes(pdf === 'sample' ? window.BUZZIN_SAMPLE_TERMS : pdf);
+const PAGES = {};
+function pdfPages(key, pdf) {
+  if (PAGES[key]) return PAGES[key];
+  PAGES[key] = { loading: true };
+  (async () => {
+    try {
+      if (!window.pdfjsLib) throw new Error('The PDF viewer did not load.');
+      const doc = await window.pdfjsLib.getDocument({ data: formPdf(pdf) }).promise;
+      const out = [];
+      for (let i = 1; i <= doc.numPages; i++) {
+        const page = await doc.getPage(i);
+        const vp = page.getViewport({ scale: 1.5 });
+        const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+        await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+        const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+        out.push({ src: URL.createObjectURL(blob), w: vp.width, h: vp.height });
+      }
+      PAGES[key] = { pages: out };
+    } catch (e) { PAGES[key] = { error: (e && e.message) || String(e) }; }
+    render();
+  })();
+  return PAGES[key];
+}
+function docState(key, pdf) {
+  const r = pdfPages(key, pdf);
+  if (r.error) return alertBox('bad', 'This document could not be shown', esc(r.error) + ' Download the original instead.');
+  return `<div class="pdf-loading">${ic('file')}<span>Loading document…</span></div>`;
+}
+function sigPreview(placement, signer, admin) {
+  const A = SIG_AREA[placement], g = signer || {};
+  const style = `left:${A.left}%;top:${A.top}%;width:${A.width}%;height:${A.height}%`;
+  if (admin || !g.sig) return `<div class="pdf-sig" style="${style}"><span class="ph">${admin ? 'Signature block: company, name, position, date and signature are added here' : 'Your name, position and signature are added here when you sign'}</span></div>`;
+  return `<div class="pdf-sig signed" style="${style}"><div class="lines">${[['Company', S.company.name], ['Name', g.name], ['Position', g.position], ['Date', fmt(TODAY)]].map(([k, v]) => `<span><i>${k}</i><b>${esc(v || '—')}</b></span>`).join('')}</div><img src="${g.sig.data}" alt="Signature"></div>`;
+}
+function boxHtml(f, o, n) {
+  const style = `left:${f.x}%;top:${f.y}%;width:${f.size}%`;
+  if (o.admin) return `<button type="button" class="pdf-box admin ${o.sel === f.id ? 'sel' : ''}" data-box="${f.id}" style="${style}" aria-label="Tick box ${n}: ${esc(f.label)}"><span class="pdf-box-n">${n}</span></button>`;
+  const on = !!(o.ticks && o.ticks[f.id]);
+  return `<button type="button" class="pdf-box ${on ? 'on' : ''} ${o.showErr && f.required && !on ? 'err' : ''}" role="checkbox" aria-checked="${on}" aria-label="${esc(f.label)}" title="${esc(f.label)}" data-act="tickBox" data-form="${o.formKey}" data-id="${f.id}" id="box-${o.formKey.replace(/\W/g, '')}-${f.id}" style="${style}">${ic('check')}</button>`;
+}
+function pdfDoc(pages, fields, o) {
+  const n = pages.length + (o.placement === 'newpage' ? 1 : 0);
+  const page = (pg, i) => `<div class="pdf-page" style="aspect-ratio:${pg.w}/${pg.h}" ${o.admin ? `data-admin-page="${i + 1}"` : ''}><img src="${pg.src}" alt="Page ${i + 1} of ${n}" draggable="false">${fields.filter(f => f.page === i + 1).map(f => boxHtml(f, o, fields.indexOf(f) + 1)).join('')}${o.placement === 'bottom' && i === pages.length - 1 ? sigPreview('bottom', o.signer, o.admin) : ''}<span class="pdf-pno">${i + 1} / ${n}</span></div>`;
+  const extra = o.placement === 'newpage' ? `<div class="pdf-page blank" style="aspect-ratio:${pages[0].w}/${pages[0].h}"><div class="pdf-newpage-head"><b>Contractor declaration</b><span>Signed for and on behalf of the contractor. Completed electronically through the Buzzin contractor portal.</span></div>${sigPreview('newpage', o.signer, o.admin)}<span class="pdf-pno">${n} / ${n}</span></div>` : '';
+  return `<div class="pdf-doc ${o.admin ? 'admin' : ''}">${pages.map(page).join('')}${extra}</div>`;
+}
+
+/* Documents close to expiry warn but never block. Only expired documents block. */
+function expiryWarnings(d, scope) {
+  const out = [], end = d.to || TODAY;
+  const check = (date, what, fix) => {
+    if (!date || date < TODAY) return;
+    const n = days(date);
+    if (n <= 30 || date < end) out.push({ what, n, date, fix, beforeEnd: date < end });
+  };
+  if (!scope || scope === 'workers') d.workers.map(person).filter(Boolean).forEach(p => check(p.idExpiry, `${p.name}’s ${p.idType}`, `data-act="editPerson" data-id="${p.id}"`));
+  if (!scope || scope === 'vehicles') if (!d.noVehicles) d.vehicles.map(vehicle).filter(Boolean).forEach(v => check(v.regExpiry, `${v.plate} registration`, `data-act="editVehicle" data-id="${v.id}"`));
+  if (!scope || scope === 'documents') Object.keys(d.docs).forEach(k => { const x = d.docs[k]; if (x && x.file && !x.noExpiry) check(x.expiry, `The ${DOCS[k].name}`, `data-act="focus" data-id="f-doc-${k}"`); });
+  if (!scope || scope === 'company') { check(S.company.licenceExpiry, 'Your trade licence', 'data-go="settings"'); S.companyDocs.forEach(c => { if (c.file && !c.noExpiry) check(c.expiry, `Your ${c.name}`, 'data-go="settings-documents"'); }); }
+  return out;
+}
+function expiryAlert(list) {
+  if (!list.length) return '';
+  return `<div class="alert alert-warn" role="status">${ic('alert')}<div class="grow"><strong>${list.length === 1 ? 'A document is close to expiry' : `${list.length} documents are close to expiry`}</strong><p>You can still submit. The community may reject your permit if a document expires before or during the work. If you have an updated document, please upload it.</p><ul>${list.map(w => `<li>${esc(w.what)} expires in ${plural(w.n, 'day')} (${fmt(w.date)})${w.beforeEnd ? ', before the work ends' : ''}. <a ${w.fix} href="#" class="btn-link">Upload updated document</a></li>`).join('')}</ul></div></div>`;
+}
+
 function pPdf() {
-  const d = S.draft, pg = ui.page, P = d.pdf['p' + pg];
-  const pageDone = i => !!d.pdf['p' + i].agree && (i !== 3 || !!d.signature) && (i !== 1 || !!d.pdf.p1.company);
-  const pf = (k, label, type = 'text') => `<div class="pf"><label for="pdf-${pg}-${k}">${label}</label>${type === 'textarea' ? `<textarea id="pdf-${pg}-${k}" data-bind="d.pdf.p${pg}.${k}">${esc(P[k] || '')}</textarea>` : `<input id="pdf-${pg}-${k}" type="${type}" data-bind="d.pdf.p${pg}.${k}" value="${esc(P[k] || '')}">`}</div>`;
-  let content = '';
-  if (pg === 1) content = `${pf('company', 'Company name *')}${pf('responsible', 'Responsible person *')}${pf('area', 'Exact work area')}${pf('note', 'Notes for the community', 'textarea')}`;
-  if (pg === 2) content = `<div class="clause">Confirm each safety measure that applies to this work.</div>${['PPE will be worn by all workers', 'Work area will be barricaded and signed', 'Fire extinguisher available on site', 'Power and water isolation agreed with facilities', 'Area cleaned and debris removed daily'].map((l, i) => `<label class="check"><input type="checkbox" data-bind="d.pdf.p2.c${i}" ${P['c' + i] ? 'checked' : ''}>${l}</label>`).join('')}${pf('note', 'Other safety notes', 'textarea')}`;
-  if (pg === 3) content = `<div class="clause">I confirm the contractor will follow community rules, work only on the approved dates and hours, keep common areas clean, and accept responsibility for damage caused by our workers.</div>${pf('name', 'Full name')}${pf('position', 'Position')}<div class="pf"><label>Signature *</label><div class="sig-box" id="f-signature" tabindex="-1">${d.signature ? (d.signature.type === 'typed' ? `<span class="sig-typed">${esc(d.signature.text)}</span>` : `<img src="${d.signature.data}" alt="Your signature">`) : btn('Add signature', { v: 'secondary', icon: 'pen', act: 'openSign' })}</div><div class="sig-line"><span>${d.signature ? 'Signed by ' + esc(d.signature.name) : 'Not signed yet'}</span><span>${d.signature ? fmt(TODAY) : ''}</span></div></div>${d.signature ? `<div class="row">${btn('Change signature', { v: 'ghost', sm: true, act: 'openSign' })}${btn('Remove signature', { v: 'danger-ghost', sm: true, act: 'clearSign' })}</div>` : ''}`;
-  return wizard('pdf', `<div class="row between"><span class="small muted">${[1, 2, 3].filter(pageDone).length} of 3 pages complete · Changes save automatically</span>${btn('Download preview', { v: 'ghost', sm: true, icon: 'download', act: 'download', id: 'Form preview' })}</div>
-  <div class="doc-layout">
-    <div class="page-rail" role="tablist" aria-label="Form pages">${[1, 2, 3].map(i => `<button class="page-thumb ${i === pg ? 'active' : ''}" role="tab" aria-selected="${i === pg}" data-act="pdfPage" data-id="${i}"><span class="sheet"><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="row">Page ${i}${pageDone(i) ? `<span style="color:var(--ok)">${ic('check')}</span>` : '<span class="faint xs">To do</span>'}</span></button>`).join('')}</div>
-    <section class="paper" aria-label="Page ${pg} of 3">
-      <div class="doc-head"><span class="doc-logo">buzz<span>in</span></span><span class="doc-meta">${esc(community().name)}<br>${esc(typeOf(d.type).name)} · Page ${pg} of 3</span></div>
-      <h2>${PDF_PAGES[pg - 1]}</h2>
-      ${content}
-      <label class="check" id="f-pdf${pg}"><input type="checkbox" data-bind="d.pdf.p${pg}.agree" data-rerender ${P.agree ? 'checked' : ''}>I have read this page and the details are correct.</label>
-      <div class="row between">${pg > 1 ? btn('Previous page', { sm: true, icon: 'left', act: 'pdfPage', id: pg - 1 }) : '<span></span>'}${pg < 3 ? btn('Next page', { sm: true, iconR: 'right', act: 'pdfPage', id: pg + 1 }) : ''}</div>
+  const d = S.draft;
+  d.ticks = d.ticks || {};
+  d.signer = d.signer || { name: S.profile.name, position: S.profile.title, sig: null, auth: false };
+  const forms = formsFor(d);
+  if (!forms.length) return wizard('pdf', card('', emptyState('check', 'Nothing to sign', `${esc(community().name)} has no terms to sign for ${esc(typeOf(d.type).name)}. Continue to review your request.`)));
+  const E = k => errOf('pdf', k);
+  const viewers = forms.map(f => {
+    const P = f.published, key = formKey(f), ticks = d.ticks[key] || {};
+    const req = P.fields.filter(x => x.required), done = req.filter(x => ticks[x.id]).length;
+    const r = pdfPages(key, P.pdf);
+    return `<section class="card" id="f-form-${f.id}" tabindex="-1">
+      <div class="card-head"><div><h2>${esc(P.name)}</h2><p>Version ${P.version} from ${esc(community().name)} · Read each section and tick its box</p></div><div class="row">${badge(`${done} of ${req.length} ticked`, done === req.length ? 'ok' : 'warn')}${btn('Original', { v: 'ghost', sm: true, icon: 'download', act: 'downloadOriginal', id: f.id })}</div></div>
+      ${E('form-' + f.id) ? `<div style="padding:12px 20px 0">${alertBox('bad', esc(E('form-' + f.id)), 'Boxes still to tick are outlined in red.')}</div>` : ''}
+      ${r.pages ? pdfDoc(r.pages, P.fields, { ticks, formKey: key, showErr: !!ui.errs.pdf, placement: P.placement, signer: d.signer }) : `<div class="card-body">${docState(key, P.pdf)}</div>`}
+    </section>`;
+  }).join('');
+  const g = d.signer;
+  const signCard = card('Sign', `
+    <div class="grid-2">
+      ${F({ id: 'f-sg-name', label: 'Full name', req: true, bind: 'd.signer.name', err: E('sg-name'), rerender: true })}
+      ${F({ id: 'f-sg-position', label: 'Position', req: true, bind: 'd.signer.position', ph: 'For example, Site supervisor', err: E('sg-position'), rerender: true })}
+    </div>
+    <div class="field" id="f-sg-sig" tabindex="-1"><span class="label">Signature<span class="req">*</span></span>
+      ${g.sig ? `<div class="sig-pad-preview"><img src="${g.sig.data}" alt="Your signature"></div><div class="row">${btn('Change signature', { sm: true, icon: 'pen', act: 'openSign' })}${btn('Remove', { v: 'danger-ghost', sm: true, act: 'clearSign' })}<span class="xs faint">${g.sig.source === 'upload' ? 'Uploaded image' : 'Drawn'}</span></div>`
+        : `<div class="row">${btn('Draw signature', { icon: 'pen', act: 'openSign', attrs: 'data-mode="draw"' })}${btn('Upload signature image', { icon: 'upload', act: 'openSign', attrs: 'data-mode="upload"' })}</div>`}
+      ${E('sg-sig') ? `<span class="err">${ic('alert')}${E('sg-sig')}</span>` : '<span class="hint">Draw it, or upload a PNG or JPG of your signature.</span>'}
+    </div>
+    ${check('f-sg-auth', 'd.signer.auth', `I am authorised to sign for ${esc(S.company.name)}.`, 'Your name, position, signature and today’s date are added to the bottom of the document.', true)}
+    ${E('sg-auth') ? `<span class="err">${ic('alert')}${E('sg-auth')}</span>` : ''}`,
+    { sub: 'One signature covers every document on this page.', foot: forms.map(f => btn(forms.length > 1 ? `Download signed: ${f.published.name}` : 'Download signed PDF', { icon: 'download', act: 'downloadSigned', id: f.id })).join('') });
+  return wizard('pdf', viewers + signCard);
+}
+
+/* Signature images */
+const loadImg = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('This image could not be read. Use a PNG or JPG.')); i.src = src; });
+function trimCanvas(c) {
+  const x = c.getContext('2d'), { data } = x.getImageData(0, 0, c.width, c.height);
+  let t = c.height, l = c.width, r = -1, b = -1;
+  for (let y = 0; y < c.height; y++) for (let X = 0; X < c.width; X++) if (data[(y * c.width + X) * 4 + 3] > 10) { if (X < l) l = X; if (X > r) r = X; if (y < t) t = y; if (y > b) b = y; }
+  if (r < 0) return c;
+  const pad = 6; l = Math.max(0, l - pad); t = Math.max(0, t - pad); r = Math.min(c.width - 1, r + pad); b = Math.min(c.height - 1, b + pad);
+  const o = document.createElement('canvas'); o.width = r - l + 1; o.height = b - t + 1;
+  o.getContext('2d').drawImage(c, l, t, o.width, o.height, 0, 0, o.width, o.height);
+  return o;
+}
+async function processSig(src, removeBg) {
+  const img = await loadImg(src), scale = Math.min(1, 900 / img.width);
+  const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(img.width * scale)); c.height = Math.max(1, Math.round(img.height * scale));
+  const x = c.getContext('2d'); x.drawImage(img, 0, 0, c.width, c.height);
+  if (removeBg) {
+    const d = x.getImageData(0, 0, c.width, c.height), p = d.data;
+    for (let i = 0; i < p.length; i += 4) { const m = Math.min(p[i], p[i + 1], p[i + 2]); if (m > 225) p[i + 3] = 0; else if (m > 180) p[i + 3] = Math.round(p[i + 3] * (225 - m) / 45); }
+    x.putImageData(d, 0, 0);
+  }
+  return trimCanvas(c).toDataURL('image/png');
+}
+
+/* Signed copy: ticks drawn in each box, signature block stamped at the bottom (or on a new last page). */
+async function signedPdf(f, d) {
+  if (!window.PDFLib) throw new Error('The PDF tools did not load.');
+  const { PDFDocument, StandardFonts, rgb } = window.PDFLib;
+  const P = f.published, doc = await PDFDocument.load(formPdf(P.pdf));
+  const font = await doc.embedFont(StandardFonts.Helvetica), bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const pages = doc.getPages(), ticks = (d.ticks || {})[formKey(f)] || {}, ink = rgb(0.06, 0.2, 0.45), grey = rgb(0.4, 0.45, 0.52);
+  P.fields.forEach(fd => {
+    if (!ticks[fd.id]) return;
+    const pg = pages[fd.page - 1]; if (!pg) return;
+    const { width, height } = pg.getSize(), s = fd.size / 100 * width;
+    pg.drawSvgPath(`M ${-s * 0.32} 0 L ${-s * 0.08} ${s * 0.24} L ${s * 0.34} ${-s * 0.3}`, { x: fd.x / 100 * width, y: height - fd.y / 100 * height, borderColor: ink, borderWidth: Math.max(1.5, s * 0.14) });
+  });
+  let page = pages[pages.length - 1];
+  const { width, height } = page.getSize();
+  if (P.placement === 'newpage') {
+    page = doc.addPage([width, height]);
+    page.drawText('Contractor declaration', { x: width * 0.09, y: height * 0.92, size: 14, font: bold, color: rgb(0.1, 0.13, 0.2) });
+    page.drawText('Signed for and on behalf of the contractor. Completed electronically through the Buzzin contractor portal.', { x: width * 0.09, y: height * 0.9, size: 9, font, color: grey });
+  }
+  const A = SIG_AREA[P.placement], bx = A.left / 100 * width, bw = A.width / 100 * width, top = height - A.top / 100 * height, bh = A.height / 100 * height;
+  const g = d.signer;
+  [['Company', S.company.name], ['Name', g.name], ['Position', g.position], ['Date', fmt(TODAY)]].forEach(([k, v], i) => {
+    const y = top - 12 - i * 15;
+    page.drawText(k, { x: bx, y, size: 9, font, color: grey });
+    page.drawText(String(v || ''), { x: bx + 58, y, size: 10.5, font: bold, color: rgb(0.08, 0.12, 0.2) });
+  });
+  const png = await doc.embedPng(b64ToBytes(g.sig.data.split(',')[1]));
+  const maxW = bw * 0.36, maxH = bh - 20, sc = Math.min(maxW / png.width, maxH / png.height, 1);
+  const iw = png.width * sc, ih = png.height * sc, sx = bx + bw - maxW + (maxW - iw) / 2, sy = top - 4 - ih;
+  page.drawImage(png, { x: sx, y: sy, width: iw, height: ih });
+  page.drawLine({ start: { x: bx + bw - maxW, y: sy - 3 }, end: { x: bx + bw, y: sy - 3 }, thickness: 0.8, color: rgb(0.6, 0.64, 0.7) });
+  page.drawText('Signature', { x: bx + bw - maxW, y: sy - 12, size: 8, font, color: grey });
+  page.drawText(`Signed electronically on ${fmt(TODAY)} via the Buzzin contractor portal · ${Object.values(ticks).filter(Boolean).length} of ${P.fields.length} boxes ticked · Version ${P.version} · Ref ${d.resubmit || d.id}`, { x: bx, y: top - bh - 6, size: 6.5, font, color: grey });
+  return doc.save();
+}
+function saveBytes(bytes, name) {
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+async function readPdf(file) {
+  if (!file) return null;
+  if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') throw new Error('Choose a PDF file.');
+  if (file.size > 4 * 1048576) throw new Error('This PDF is larger than 4 MB. Choose a smaller file for this preview.');
+  const u = new Uint8Array(await file.arrayBuffer());
+  if (String.fromCharCode(u[0], u[1], u[2], u[3]) !== '%PDF') throw new Error('This file is not a valid PDF.');
+  return { pdf: bytesToB64(u), fileName: file.name, size: file.size };
+}
+
+/* ================= Community admin (design preview) ================= */
+const pubSubset = x => ({ name: x.name, pdf: x.pdf, fields: x.fields, appliesTo: [...x.appliesTo].sort(), placement: x.placement });
+function formStatus(f) {
+  if (!f.published) return ['Not published', 'neutral'];
+  return JSON.stringify(pubSubset(f)) === JSON.stringify(pubSubset(f.published)) ? [`Published · v${f.published.version}`, 'ok'] : ['Unpublished changes', 'warn'];
+}
+const curAdminForm = () => S.forms.find(x => x.id === route().slice(11));
+function adminSidebar() {
+  return `<div class="logo"><span class="wm">buzz<span>in</span></span><small>Community admin</small></div>
+  <nav class="side-nav" aria-label="Admin"><div class="side-label">${esc(community().name)}</div><button class="nav-item active" data-go="admin-forms" aria-current="page">${ic('file')}<span>Permit forms</span></button></nav>
+  <div class="side-foot"><div class="side-help"><strong>Community admin view</strong><p>Design preview of the side community staff use. In the live product it has its own login.</p>${btn('Back to contractor portal', { go: 'home', sm: true, icon: 'arrowL' })}</div></div>`;
+}
+function pAdminForms() {
+  const list = S.forms.filter(f => f.community === S.community);
+  return `${pageHead('Permit forms', `Documents contractors read and sign before ${esc(community().name)} reviews a work permit.`, btn('Upload PDF form', { v: 'primary', icon: 'upload', act: 'adminNewForm' }))}
+  ${alertBox('info', 'How it works', 'Upload your terms or guidelines as a PDF. Click next to each clause to place a tick box, choose which permit types need it, then publish. Contractors tick every box, enter their name and position, and draw or upload a signature. It is stamped with the date at the bottom of the document.')}
+  ${list.length ? card('', `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Form</th><th>Required for</th><th>Tick boxes</th><th>Status</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${list.map(f => { const [l, t] = formStatus(f); return `<tr class="clickable" data-go="admin-form-${f.id}"><td><div class="t-main"><b>${esc(f.name)}</b><span>${esc(f.fileName)} · Updated ${fmt(f.updated)}</span></div></td><td data-m="sub">${f.appliesTo.length === PERMIT_TYPES.length ? 'All work permits' : f.appliesTo.map(id => typeOf(id).name).join(', ') || 'None'}</td><td data-m="hide" class="num">${f.fields.length}</td><td data-m="side">${badge(l, t)}</td><td class="t-actions">${btn('Edit', { v: 'ghost', sm: true, go: 'admin-form-' + f.id })}${btn('', { v: 'ghost', sm: true, icon: 'trash', act: 'adminDeleteForm', id: f.id, title: 'Delete ' + f.name })}</td></tr>`; }).join('')}</tbody></table></div>`, { raw: true })
+    : card('', emptyState('file', 'No forms yet', 'Upload your contractor terms as a PDF to get started.', btn('Upload PDF form', { v: 'primary', sm: true, icon: 'upload', act: 'adminNewForm' })))}`;
+}
+function pAdminForm(id) {
+  const f = S.forms.find(x => x.id === id);
+  if (!f) return pageHead('Form not found', 'It may have been deleted.', btn('Back to forms', { go: 'admin-forms' }));
+  const [sl, st] = formStatus(f), sel = f.fields.find(x => x.id === ui.adminSel), key = `admin:${f.id}:${f.pdfRev || 0}`, r = pdfPages(key, f.pdf), mode = ui.adminMode || 'add';
+  return `${pageHead(`${esc(f.name)} ${badge(sl, st)}`, `${esc(f.fileName)} · ${plural(f.fields.length, 'tick box', 'tick boxes')}`, btn('Replace PDF', { icon: 'refresh', act: 'adminReplace', id: f.id }) + `<input class="file-input" type="file" id="admin-replace" accept="application/pdf,.pdf" data-adminpdf="${f.id}">` + btn(f.published ? 'Publish changes' : 'Publish', { v: 'primary', icon: 'send', act: 'adminPublish', id: f.id }), [['Permit forms', 'admin-forms'], [f.name]])}
+  <div class="layout-main admin-editor">
+    <section class="card">
+      <div class="toolbar"><div class="segmented" role="radiogroup" aria-label="Editing mode">${[['add', 'Add tick box'], ['move', 'Select & move']].map(([k, l]) => `<label><input type="radio" name="amode" value="${k}" data-change="adminMode" ${mode === k ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div><span class="small muted">${mode === 'add' ? 'Click next to a clause to place a tick box. Drag a box to move it.' : 'Drag a tick box to move it. Click one to edit it. Arrow keys nudge it.'}</span></div>
+      ${r.pages ? pdfDoc(r.pages, f.fields, { admin: true, sel: ui.adminSel, placement: f.placement }) : `<div class="card-body">${docState(key, f.pdf)}</div>`}
     </section>
-  </div>`);
+    <div class="stack admin-side">
+      ${sel ? card(`Tick box ${f.fields.indexOf(sel) + 1}`, `${F({ id: 'af-label', label: 'What the contractor agrees to', value: sel.label, attrs: 'data-afield="label"', hint: 'Shown on hover, read by screen readers and listed in the review.' })}
+        <label class="switch" for="af-req"><input type="checkbox" id="af-req" data-afield="required" ${sel.required ? 'checked' : ''}><span class="track"></span><span class="txt"><b>Required</b><small>Contractors cannot submit until it is ticked.</small></span></label>
+        <div class="field"><span class="label">Size</span><div class="segmented" role="radiogroup">${[['2.2', 'Small'], ['2.8', 'Medium'], ['3.6', 'Large']].map(([v, l]) => `<label><input type="radio" name="af-size" value="${v}" data-afield="size" ${Math.abs(sel.size - Number(v)) < 0.3 ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div></div>`,
+        { action: btn('Delete', { v: 'danger-ghost', sm: true, icon: 'trash', act: 'adminDeleteField', id: sel.id }) }) : ''}
+      ${card('Form details', `${F({ id: 'af-name', label: 'Name contractors see', value: f.name, attrs: 'data-aform="name"' })}`)}
+      ${card('Tick boxes', f.fields.length ? f.fields.map((x, i) => `<button class="list-row ${x.id === ui.adminSel ? 'sel' : ''}" style="width:100%;text-align:left" data-act="adminSelect" data-id="${x.id}"><span class="ic tone-${x.id === ui.adminSel ? 'info' : 'neutral'}" style="font-weight:700;font-size:12px">${i + 1}</span><span class="grow"><b class="small">${esc(x.label)}</b><span>Page ${x.page} · ${x.required ? 'Required' : 'Optional'}</span></span></button>`).join('') : '<p class="small muted" style="padding:12px">No tick boxes yet. Click on the document next to a clause to add one.</p>', { tight: true })}
+      ${card('Signature', `<div class="stack-sm">${[['bottom', 'Bottom of the last page', 'Use when the PDF leaves space at the end, like the sample.'], ['newpage', 'Add a new last page', 'Use when the PDF has no free space.']].map(([v, l, h]) => `<label class="choice"><input type="radio" name="af-place" value="${v}" data-aform="placement" ${f.placement === v ? 'checked' : ''}><span class="radio"></span><span class="grow"><b>${l}</b><small>${h}</small></span></label>`).join('')}</div><p class="xs faint">Contractors type their name and position, then draw or upload a signature. Company name and date are added automatically.</p>`)}
+      ${card('Required for', `<div class="stack-sm">${PERMIT_TYPES.map(t => `<label class="check"><input type="checkbox" data-aform="appliesTo" value="${t.id}" ${f.appliesTo.includes(t.id) ? 'checked' : ''}>${t.name}</label>`).join('')}</div>`)}
+      ${card('', `<div class="row between"><span class="small muted">Stop asking contractors to sign this form.</span>${btn('Delete form', { v: 'danger-ghost', sm: true, icon: 'trash', act: 'adminDeleteForm', id: f.id })}</div>`)}
+    </div>
+  </div>`;
 }
 function pReview() {
   const d = S.draft, t = typeOf(d.type);
   const sec = (title, step, rows) => card(title, `<dl class="dl">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v || '<span class="faint">Not provided</span>'}</dd>`).join('')}</dl>`, { action: btn('Edit', { v: 'ghost', sm: true, icon: 'edit', act: 'gotoStep', id: step }) });
   const docs = t.docs.concat(t.optional).filter(k => d.docs[k] && d.docs[k].file).map(k => `${DOCS[k].name} <span class="faint">· ${d.docs[k].noExpiry ? 'No expiry' : 'Valid to ' + fmt(d.docs[k].expiry)}</span>`).join('<br>');
-  return wizard('review', `${alertBox('info', 'Submitting does not approve your request', `${esc(community().name)} reviews every request. Work can start only after approval.`)}
+  return wizard('review', `${expiryAlert(expiryWarnings(d))}${alertBox('info', 'Submitting does not approve your request', `${esc(community().name)} reviews every request. Work can start only after approval.`)}
     ${sec('Work details', 'details', [['Community', esc(community().name)], ['Location', esc([d.property, d.units.join(', ')].filter(Boolean).join(' · '))], ['Permit type', esc(t.name)], ['Work', esc(d.title)], ['Description', esc(d.description)], ['Site contact', esc([d.contact, d.phone].filter(Boolean).join(' · '))], ['Dates', d.from ? range(d.from, d.to) + ` · ${d.start}–${d.end}` : ''], ['AMC', d.amc === 'yes' ? 'Yes' : 'No']])}
     ${sec('Materials', 'materials', [['Items', d.noMaterials ? 'None' : d.materials.map(m => `${esc(m.name)} × ${m.qty} ${esc(m.unit)}`).join('<br>')]])}
     ${sec('Vehicles', 'workvehicles', [['Vehicles', d.noVehicles ? 'None' : d.vehicles.map(vehicle).filter(Boolean).map(v => esc(v.plate + ' · ' + v.make)).join('<br>')], ['Expected trips', esc(d.trips)]])}
     ${sec('Workers', 'personnel', [['On site', d.workers.map(person).filter(Boolean).map(p => esc(`${p.name} · ${p.role}`)).join('<br>')]])}
-    ${sec('Documents & signature', 'documents', [['Uploaded', docs], ['Forms', `${[1, 2, 3].filter(i => d.pdf['p' + i].agree).length} of 3 pages complete`], ['Signature', d.signature ? 'Signed by ' + esc(d.signature.name) : '']])}
+    ${sec('Documents', 'documents', [['Uploaded', docs]])}
+    ${sec('Terms & signature', 'pdf', [['Terms', formsFor(d).length ? formsFor(d).map(f => `${esc(f.published.name)} · v${f.published.version} <span class="faint">· ${Object.values((d.ticks || {})[formKey(f)] || {}).filter(Boolean).length} of ${f.published.fields.length} ticked</span>`).join('<br>') : 'Nothing to sign'], ['Signed by', d.signer && d.signer.sig ? esc(`${d.signer.name} · ${d.signer.position}`) : '']])}
     <div class="card"><div class="card-body">${check('f-consent', 'd.consent', 'I confirm the information in this request is correct and complete.', 'False information can lead to the pass being cancelled.', true)}${errOf('review', 'consent') ? `<span class="err">${ic('alert')}${errOf('review', 'consent')}</span>` : ''}</div></div>`);
 }
 function pSubmitted(id) {
@@ -844,7 +1054,7 @@ function pVehicles() {
 /* ================= Settings ================= */
 const SET_TABS = [
   ['general', 'Company & billing', 'building', 'Account'], ['profile', 'My profile', 'user', 'Account'], ['security', 'Password & security', 'lock', 'Account'],
-  ['documents', 'Company documents', 'file', 'Company'], ['team', 'Team members', 'users', 'Company'], ['communities', 'Communities', 'layers', 'Company'],
+  ['documents', 'Company documents', 'file', 'Company'], ['communities', 'Communities', 'layers', 'Company'],
   ['notifications', 'Notifications', 'bell', 'Preferences'],
 ];
 function initForm(tab) {
@@ -859,8 +1069,8 @@ function pSettings(r) {
   if (ui.formTab !== tab || !ui.form) { ui.form = initForm(tab); ui.formTab = tab; ui.dirty = false; ui.formErr = {}; }
   const expDocs = S.companyDocs.filter(c => ['warn', 'bad'].includes(expiry(c.expiry, c.noExpiry).tone)).length + (['warn', 'bad'].includes(expiry(S.company.licenceExpiry).tone) ? 1 : 0);
   let group = '';
-  const nav = SET_TABS.map(([k, l, i, g]) => { const head = g !== group ? `<div class="side-label">${g}</div>` : ''; group = g; return head + `<button class="set-link ${tab === k ? 'active' : ''}" data-go="settings-${k}" ${tab === k ? 'aria-current="page"' : ''}>${ic(i)}${l}${k === 'documents' && expDocs ? badge(String(expDocs), 'warn') : ''}${k === 'team' ? `<span class="count" style="margin-left:auto">${S.team.length}</span>` : ''}</button>`; }).join('');
-  const body = { general: setGeneral, profile: setProfile, security: setSecurity, documents: setDocuments, team: setTeam, communities: setCommunities, notifications: setNotifications }[tab]();
+  const nav = SET_TABS.map(([k, l, i, g]) => { const head = g !== group ? `<div class="side-label">${g}</div>` : ''; group = g; return head + `<button class="set-link ${tab === k ? 'active' : ''}" data-go="settings-${k}" ${tab === k ? 'aria-current="page"' : ''}>${ic(i)}${l}${k === 'documents' && expDocs ? badge(String(expDocs), 'warn') : ''}</button>`; }).join('');
+  const body = { general: setGeneral, profile: setProfile, security: setSecurity, documents: setDocuments, communities: setCommunities, notifications: setNotifications }[tab]();
   const savable = ['general', 'profile', 'notifications'].includes(tab);
   return `${pageHead('Settings', 'Manage your company, account and how Buzzin contacts you.')}
   <div class="settings"><nav class="set-nav" aria-label="Settings">${nav}</nav><div class="stack">${body}</div></div>
@@ -903,7 +1113,7 @@ function setGeneral() {
 function setProfile() {
   return `<section class="card" data-dirty>
     <div class="card-head"><div><h2>Update your profile</h2><p>Your name and contact details as the account holder.</p></div></div>
-    <div class="form-sec"><div><h3>Photo</h3><p>Helps your team recognise you.</p></div><div class="logo-up"><span class="avatar lg">${initials(ui.form.name)}</span><div class="row">${btn('Upload photo', { sm: true, icon: 'upload', act: 'demo', id: 'Photo upload' })}${btn('Remove', { v: 'ghost', sm: true, act: 'demo', id: 'Photo removed' })}</div></div></div>
+    <div class="form-sec"><div><h3>Photo</h3><p>Shown to communities with your requests.</p></div><div class="logo-up"><span class="avatar lg">${initials(ui.form.name)}</span><div class="row">${btn('Upload photo', { sm: true, icon: 'upload', act: 'demo', id: 'Photo upload' })}${btn('Remove', { v: 'ghost', sm: true, act: 'demo', id: 'Photo removed' })}</div></div></div>
     <div class="form-sec"><div><h3>Personal details</h3></div><div class="grid-2">
       ${F({ id: 'pr-name', label: 'Name', req: true, bind: 'f.name', err: fe('name') })}
       ${F({ id: 'pr-title', label: 'Job title', opt: true, bind: 'f.title' })}
@@ -928,20 +1138,14 @@ function setSecurity() {
         <ul class="rules" id="pw-rules">${rule(P.next.length >= 8, 'At least 8 characters')}${rule(/[A-Z]/.test(P.next) && /[a-z]/.test(P.next), 'Upper and lower case letters')}${rule(/\d/.test(P.next), 'At least one number')}${rule(/[^A-Za-z0-9]/.test(P.next), 'At least one symbol')}</ul></div>
       ${F({ id: 'pw-confirm', label: 'Confirm password', req: true, bind: 'p.confirm', type, err: fe('confirm'), ph: 'Confirm password', attrs: 'autocomplete="new-password"' })}
     </div><label class="check"><input type="checkbox" data-change="showPw" ${P.show ? 'checked' : ''}>Show passwords</label>`,
-    { sub: 'You will stay signed in here. Other devices will be signed out.', foot: btn('Change password', { v: 'primary', act: 'changePassword' }) })}
+    { sub: 'Use a password you don’t use anywhere else.', foot: btn('Change password', { v: 'primary', act: 'changePassword' }) })}
   ${card('Two-step verification', `${sw('twofa', '', 'Require a code when signing in', S.twofa ? `On · Codes are sent by SMS to ${esc(S.profile.phone)}` : 'Off · Add a one-time SMS code to protect your account', false, 'twofa')}`.replace('type="checkbox" id="twofa"', `type="checkbox" id="twofa" ${S.twofa ? 'checked' : ''}`), { sub: 'Recommended for owners and admins.' })}
-  ${card('Where you’re signed in', S.sessions.map(x => `<div class="list-row"><span class="ic tone-neutral">${ic(x.icon)}</span><span class="grow"><b>${esc(x.device)} ${x.current ? badge('This device', 'ok') : ''}</b><span>${esc(x.where)} · ${esc(x.when)}</span></span>${x.current ? '' : btn('Sign out', { v: 'ghost', sm: true, act: 'endSession', id: x.id })}</div>`).join(''), { tight: true, action: S.sessions.length > 1 ? btn('Sign out all other devices', { sm: true, act: 'endAllSessions' }) : '' })}
-  ${card('Deactivate account', `<p class="small muted">Deactivating removes your access and your team's access to all communities. Approved passes are cancelled. Records are kept for 90 days as required by communities, then deleted.</p>`, { cls: 'danger-zone', foot: btn('Deactivate account', { v: 'danger', act: 'deactivate' }) })}`;
+  ${card('Deactivate account', `<p class="small muted">Deactivating removes your company’s access to all communities. Approved passes are cancelled. Records are kept for 90 days as required by communities, then deleted.</p>`, { cls: 'danger-zone', foot: btn('Deactivate account', { v: 'danger', act: 'deactivate' }) })}`;
 }
 function setDocuments() {
   const rows = [{ id: 'licence', name: 'Trade licence', file: S.company.licence && S.company.licence.name, expiry: S.company.licenceExpiry, required: true, fixed: true }, ...S.companyDocs];
   return card('Company documents', `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Document</th><th>File</th><th>Status</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${rows.map(d => { const e = d.file ? expiry(d.expiry, d.noExpiry) : { tone: 'bad', label: 'Missing' }; return `<tr><td><div class="t-main"><b>${esc(d.name)} ${d.required ? '<span class="xs faint">· Required</span>' : ''}</b><span>${d.noExpiry ? 'No expiry date' : d.expiry ? 'Expires ' + fmt(d.expiry) : ''}</span></div></td><td data-m="sub">${d.file ? `<span class="mono">${esc(d.file)}</span>` : '<span class="faint">Not uploaded</span>'}</td><td data-m="side">${badge(e.label, e.tone)}</td><td class="t-actions">${d.fixed ? btn('Edit', { v: 'ghost', sm: true, go: 'settings-general' }) : `${btn(d.file ? 'Replace' : 'Upload', { v: 'ghost', sm: true, act: 'editCompanyDoc', id: d.id })}${btn('', { v: 'ghost', sm: true, icon: 'trash', act: 'removeCompanyDoc', id: d.id, title: 'Remove ' + d.name })}`}</td></tr>`; }).join('')}</tbody></table></div>`,
     { raw: true, sub: 'Shared with every community you work in. Keep insurance and licences current to avoid delays.', action: btn('Add document', { v: 'primary', sm: true, icon: 'plus', act: 'addCompanyDoc' }) });
-}
-function setTeam() {
-  return `${card('Team members', `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Member</th><th>Role</th><th>Last active</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${S.team.map(t => `<tr><td><div class="person"><span class="avatar">${initials(t.name)}</span><div class="t-main"><b>${esc(t.name)} ${t.status === 'invited' ? badge('Invited', 'info') : ''}</b><span>${esc(t.email)}</span></div></div></td><td data-m="side">${t.role === 'Owner' ? '<b class="small">Owner</b>' : `<label class="sr" for="role-${t.id}">Role for ${esc(t.name)}</label><select class="select" style="height:30px;width:auto" id="role-${t.id}" data-change="changeRole" data-id="${t.id}">${Object.keys(ROLES).filter(r => r !== 'Owner').map(r => `<option ${t.role === r ? 'selected' : ''}>${r}</option>`).join('')}</select>`}</td><td data-m="sub">${esc(t.last)}</td><td class="t-actions">${t.status === 'invited' ? btn('Resend', { v: 'ghost', sm: true, act: 'resendInvite', id: t.id }) : ''}${t.role !== 'Owner' ? btn('', { v: 'ghost', sm: true, icon: 'trash', act: 'removeMember', id: t.id, title: 'Remove ' + t.name }) : ''}</td></tr>`).join('')}</tbody></table></div>`,
-    { raw: true, sub: 'People in your company who can sign in to this portal.', action: btn('Invite member', { v: 'primary', sm: true, icon: 'plus', act: 'inviteMember' }) })}
-  ${card('Roles', `<dl class="dl">${Object.entries(ROLES).map(([r, d]) => `<dt>${r}</dt><dd style="font-weight:400" class="muted">${d}</dd>`).join('')}</dl>`)}`;
 }
 function setCommunities() {
   return card('Communities', S.communities.map(c => `<div class="list-row"><span class="avatar" style="border-radius:8px">${initials(c.name)}</span><span class="grow"><b>${esc(c.name)} ${c.id === S.community ? badge('Current', 'brand') : ''}</b><span>${esc(c.area)} · ${c.status === 'active' ? 'Access since ' + fmt(c.since) : 'Request sent · Waiting for approval'}</span></span>${c.status === 'active' ? `${c.id !== S.community ? btn('Switch', { v: 'ghost', sm: true, act: 'switchCommunity', id: c.id }) : ''}${btn('Leave', { v: 'danger-ghost', sm: true, act: 'leaveCommunity', id: c.id })}` : `${badge('Pending', 'info')}${btn('Withdraw', { v: 'ghost', sm: true, act: 'withdrawAccess', id: c.id })}`}</div>`).join(''),
@@ -1001,17 +1205,21 @@ function renderModal() {
     ${F({ id: 'vh-exp', label: 'Registration expiry', req: true, bind: 'm.regExpiry', type: 'date', err: E.regExpiry })}
     <div class="field full"><span class="label">Registration card (Mulkiya)<span class="req">*</span></span>${uploader({ key: 'vreg', bind: 'm.fileObj', label: 'registration card, both sides', file: m.data.fileObj })}${E.file ? `<span class="err">${ic('alert')}${E.file}</span>` : ''}</div></div>`,
     foot: btn('Cancel', { act: 'closeModal' }) + btn(m.data.id ? 'Save changes' : 'Add vehicle', { v: 'primary', act: 'saveVehicle' }) }); }
-  if (m.type === 'sign') return modalFrame({ title: 'Add your signature', sub: 'Your signature is added to page 3 of the community form.', size: 'lg', body: `
-    <div class="segmented" role="tablist">${[['draw', 'Draw'], ['type', 'Type']].map(([k, l]) => `<label><input type="radio" name="sigmode" value="${k}" data-change="signMode" ${ui.signMode === k ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>
-    ${ui.signMode === 'draw' ? `<canvas class="sig" id="sig-canvas" aria-label="Draw your signature"></canvas><div class="row between"><span class="hint">Use your mouse, finger or stylus.</span>${btn('Clear', { v: 'ghost', sm: true, act: 'sigClear' })}</div>` : `<div class="sig-preview"><span class="sig-typed" id="sig-typed">${esc(m.data.name || ' ')}</span></div>`}
-    ${F({ id: 'sg-name', label: 'Full name', req: true, bind: 'm.name', err: (m.errs || {}).name, attrs: 'data-signame' })}
-    ${check('sg-ok', 'm.ok', 'I confirm this is my signature and I am authorised to sign for ' + esc(S.company.name) + '.')}${(m.errs || {}).ok ? `<span class="err">${ic('alert')}${m.errs.ok}</span>` : ''}${(m.errs || {}).draw ? `<span class="err">${ic('alert')}${m.errs.draw}</span>` : ''}`,
-    foot: btn('Cancel', { act: 'closeModal' }) + btn('Apply signature', { v: 'primary', act: 'saveSign' }) });
-  if (m.type === 'invite') { const E = m.errs || {}; return modalFrame({ title: 'Invite a team member', sub: 'They get an email with a link to set a password.', body: `
-    ${F({ id: 'in-name', label: 'Name', req: true, bind: 'm.name', err: E.name })}
-    ${F({ id: 'in-email', label: 'Work email', req: true, bind: 'm.email', type: 'email', err: E.email })}
-    ${F({ id: 'in-role', label: 'Role', bind: 'm.role', options: Object.keys(ROLES).filter(r => r !== 'Owner'), rerender: true, hint: ROLES[m.data.role] })}`,
-    foot: btn('Cancel', { act: 'closeModal' }) + btn('Send invite', { v: 'primary', icon: 'send', act: 'sendInvite' }) }); }
+  if (m.type === 'sign') { const E = m.errs || {}; return modalFrame({ title: 'Add your signature', sub: 'Draw it or upload an image. It is added to the bottom of the signed document.', size: 'lg', body: `
+    <div class="segmented" role="radiogroup" aria-label="Signature method">${[['draw', 'Draw'], ['upload', 'Upload image']].map(([k, l]) => `<label><input type="radio" name="sigmode" value="${k}" data-change="signMode" ${ui.signMode === k ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>
+    ${ui.signMode === 'draw'
+      ? `<canvas class="sig" id="sig-canvas" aria-label="Draw your signature"></canvas><div class="row between"><span class="hint">Sign with your mouse, finger or stylus.</span>${btn('Clear', { v: 'ghost', sm: true, act: 'sigClear' })}</div>`
+      : (m.data.upload
+        ? `<div class="sig-pad-preview lg"><img src="${m.data.upload}" alt="Uploaded signature"></div><div class="row between"><label class="check"><input type="checkbox" data-change="sigBg" ${m.data.removeBg ? 'checked' : ''}>Remove white background</label><div class="row"><label class="btn btn-ghost btn-sm" for="sig-file">Choose another</label>${btn('Remove', { v: 'danger-ghost', sm: true, act: 'sigUploadClear' })}</div></div>`
+        : `<label class="dropzone" for="sig-file" data-sigdrop><span class="ic">${ic('upload')}</span><b>Upload a signature image</b><span class="xs faint">PNG or JPG · Max 2 MB · A PNG with a transparent background looks best</span></label>`)
+        + '<input class="file-input" type="file" id="sig-file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" data-sigfile>'}
+    ${E.sig ? `<span class="err">${ic('alert')}${E.sig}</span>` : ''}`,
+    foot: btn('Cancel', { act: 'closeModal' }) + btn('Apply signature', { v: 'primary', act: 'saveSign' }) }); }
+  if (m.type === 'adminForm') { const E = m.errs || {}; return modalFrame({ title: 'Upload a PDF form', sub: 'Contractors will read it, tick each box you place, and sign it.', body: `
+    ${F({ id: 'af-new-name', label: 'Form name', req: true, bind: 'm.name', err: E.name, ph: 'For example, Contractor terms & community guidelines' })}
+    <div class="field"><span class="label">PDF file<span class="req">*</span></span>${m.data.fileName ? `<div class="file-row"><span class="ic">PDF</span><span class="grow"><b>${esc(m.data.fileName)}</b><span>${sizeTxt(m.data.size)}</span></span><label class="btn btn-ghost btn-sm" for="af-file">Replace</label></div>` : `<label class="dropzone" for="af-file"><span class="ic">${ic('upload')}</span><b>Upload PDF</b><span class="xs faint">PDF only · Max 4 MB in this preview</span></label>`}<input class="file-input" type="file" id="af-file" accept="application/pdf,.pdf" data-adminpdf="new">${E.file ? `<span class="err">${ic('alert')}${E.file}</span>` : `<span class="hint">No PDF to hand? ${btn('Use the sample terms PDF', { v: 'link', act: 'adminUseSample', cls: 'xs' })}</span>`}</div>
+    <div class="field"><span class="label">Required for</span>${PERMIT_TYPES.map(t => `<label class="check"><input type="checkbox" data-mapplies value="${t.id}" ${m.data.appliesTo.includes(t.id) ? 'checked' : ''}>${t.name}</label>`).join('')}</div>`,
+    foot: btn('Cancel', { act: 'closeModal' }) + btn('Continue to place tick boxes', { v: 'primary', act: 'adminCreate', iconR: 'arrowR' }) }); }
   if (m.type === 'companyDoc') { const E = m.errs || {}; return modalFrame({ title: m.data.id ? 'Replace document' : 'Add company document', body: `
     ${F({ id: 'cd-name', label: 'Document', req: true, bind: 'm.name', options: ['Public liability insurance', "Workmen's compensation insurance", 'Contractor all-risk insurance', 'VAT registration certificate', 'Company profile', 'Chamber of commerce certificate', 'Other'], disabled: !!m.data.id })}
     <div class="field"><span class="label">File<span class="req">*</span></span>${uploader({ key: 'cdoc', bind: 'm.fileObj', label: 'document', file: m.data.fileObj })}${E.file ? `<span class="err">${ic('alert')}${E.file}</span>` : ''}</div>
@@ -1023,7 +1231,7 @@ function renderModal() {
     ${F({ id: 'ac-msg', label: 'Message', opt: true, bind: 'm.message', type: 'textarea', rows: 3, ph: 'For example, We maintain HVAC systems for several owners in your community.' })}
     ${alertBox('info', 'Shared with the community', 'Company name, trade licence, TRN and your insurance documents.')}`,
     foot: btn('Cancel', { act: 'closeModal' }) + btn('Send request', { v: 'primary', icon: 'send', act: 'sendAccess' }) }); }
-  if (m.type === 'drawer') return `<div class="overlay drawer-overlay" data-overlay style="place-items:stretch start"><div class="drawer left sidebar" role="dialog" aria-modal="true" aria-label="Menu" style="position:static;height:100%"><div class="side-inner">${sidebar(route())}</div></div></div>`;
+  if (m.type === 'drawer') return `<div class="overlay drawer-overlay" data-overlay style="place-items:stretch start"><div class="drawer left sidebar" role="dialog" aria-modal="true" aria-label="Menu" style="position:static;height:100%"><div class="side-inner">${route().startsWith('admin') ? adminSidebar() : sidebar(route())}</div></div></div>`;
   if (m.type === 'preview') return modalFrame({ title: esc(m.data.name), sub: 'File preview', size: 'lg', body: `<div class="paper" style="max-width:none;min-height:320px;place-content:center;text-align:center"><p>Preview of <b>${esc(m.data.name)}</b></p><p class="small">The live portal shows the uploaded file here.</p></div>`, foot: btn('Close', { act: 'closeModal' }) });
   return '';
 }
@@ -1062,6 +1270,8 @@ function page(r) {
   if (r.startsWith('submitted-')) return pSubmitted(r.slice(10));
   if (r.startsWith('completion')) return pCompletion(r.slice(11));
   if (r.startsWith('settings')) return pSettings(r);
+  if (r === 'admin-forms') return pAdminForms();
+  if (r.startsWith('admin-form-')) return pAdminForm(r.slice(11));
   return ({ home: pHome, permits: pPermits, type: pType, visitor: pVisitor, help: pHelp, people: pPeople, vehicles: pVehicles }[r] || pHome)();
 }
 const TITLES = { home: 'Overview', permits: 'Authorized passes', type: 'Request pass', visitor: 'Visitor pass', help: 'Help & contact', people: 'Employees', vehicles: 'Vehicles' };
@@ -1072,10 +1282,10 @@ function render() {
   const sel = focusId && a.selectionStart != null ? [a.selectionStart, a.selectionEnd] : null;
   const inWizard = STEPS.some(s => s[0] === r) && S.draft;
   document.getElementById('app').innerHTML = `<div class="app ${inWizard ? 'has-actionbar' : ''}">
-    <aside class="sidebar"><div class="side-inner">${sidebar(r)}</div></aside>
+    <aside class="sidebar"><div class="side-inner">${r.startsWith('admin') ? adminSidebar() : sidebar(r)}</div></aside>
     <div class="main">${topbar()}<main class="content" id="main">${page(r)}</main>${bottomNav(r)}</div>
   </div>${rowMenuLayer()}${renderModal()}`;
-  document.title = (TITLES[r] || (r.startsWith('settings') ? 'Settings' : r.startsWith('permit-') ? r.slice(7) : STEPS.find(s => s[0] === r)?.[1]) || 'Buzzin') + ' · Buzzin contractor portal';
+  document.title = (TITLES[r] || (r.startsWith('admin') ? 'Permit forms' : '') || (r.startsWith('settings') ? 'Settings' : r.startsWith('permit-') ? r.slice(7) : STEPS.find(s => s[0] === r)?.[1]) || 'Buzzin') + ' · Buzzin contractor portal';
   if (focusId) {
     const el = document.getElementById(focusId);
     if (el) { el.focus({ preventScroll: true }); if (sel && el.setSelectionRange) try { el.setSelectionRange(sel[0], sel[1]); } catch (e) { /* date inputs */ } }
@@ -1165,7 +1375,7 @@ const ACT = {
   shareCodes(t) { openConfirm({ title: 'Send QR codes to workers?', message: `Each worker on ${t.dataset.id} gets their personal entry code by SMS.`, confirmText: 'Send codes', icon: 'send', onConfirm: () => toast('QR codes sent by SMS') }); },
   copy(t) { const v = t.dataset.id; const done = () => toast(`Copied ${v}`); try { navigator.clipboard.writeText(v).then(done, () => toast('Copy not available here. Select the text instead.', { err: true })); } catch (e) { toast('Copy not available here. Select the text instead.', { err: true }); } },
   demo(t) { toast(`${t.dataset.id} (preview)`); },
-  focus(t) { const pm = /^f-(?:pdf(\d)|signature)$/.exec(t.dataset.id); if (pm) { ui.page = Number(pm[1] || 3); render(); } const el = document.getElementById(t.dataset.id) || document.getElementById(t.dataset.id + '-add'); if (el) { el.scrollIntoView({ block: 'center' }); el.focus({ preventScroll: true }); } },
+  focus(t) { const el = document.getElementById(t.dataset.id) || document.getElementById(t.dataset.id + '-add'); if (el) { el.scrollIntoView({ block: 'center' }); el.focus({ preventScroll: true }); } },
   gotoStep(t) { wzGo(t.dataset.id); },
   wzBack() { const i = stepIndex(route()); if (i <= 0) go('type'); else wzGo(STEPS[i - 1][0]); },
   wzNext() { const r = route(), i = stepIndex(r); if (Object.keys(validate(r)).length) { ui.errs[r] = true; render(); const s = document.getElementById('err-summary'); if (s) { s.scrollIntoView({ block: 'center' }); s.focus({ preventScroll: true }); } return; } S.draft.reached = Math.max(S.draft.reached, i + 1); persistDraft(); wzGo(STEPS[i + 1][0]); },
@@ -1176,7 +1386,7 @@ const ACT = {
     const d = S.draft;
     openConfirm({ title: d.resubmit ? `Resubmit ${d.resubmit}?` : 'Submit this request?', message: `${d.title} will be sent to ${community().name} for review. You can't edit it while it's under review.`, confirmText: d.resubmit ? 'Resubmit request' : 'Submit request', icon: 'send', onConfirm: () => {
       let id;
-      const rec = { community: d.community, kind: 'work', title: d.title, type: d.type, property: d.property, units: d.units, from: d.from, to: d.to, hours: `${d.start}–${d.end}`, status: 'review', updated: TODAY, workers: d.workers, vehicles: d.noVehicles ? [] : d.vehicles, materials: d.noMaterials ? 0 : d.materials.length, docs: Object.keys(d.docs).filter(k => d.docs[k].file).map(k => DOCS[k].name) };
+      const rec = { community: d.community, kind: 'work', title: d.title, type: d.type, property: d.property, units: d.units, from: d.from, to: d.to, hours: `${d.start}–${d.end}`, status: 'review', updated: TODAY, workers: d.workers, vehicles: d.noVehicles ? [] : d.vehicles, materials: d.noMaterials ? 0 : d.materials.length, docs: Object.keys(d.docs).filter(k => d.docs[k].file).map(k => DOCS[k].name).concat(formsFor(d).map(f => f.published.name + ' (signed)')) };
       if (d.resubmit) { id = d.resubmit; Object.assign(S.permits.find(p => p.id === id), rec, { message: '' }); } else { id = 'BZ-' + S.nextRef++; S.permits.unshift(Object.assign({ id }, rec)); }
       S.notifications.unshift({ id: uid('n'), title: `${id} submitted`, body: `${d.title} was sent to ${community().name}.`, when: 'Just now', go: 'permit-' + id, unread: false });
       S.draft = null; ui.errs = {}; persist(); go('submitted-' + id);
@@ -1195,19 +1405,62 @@ const ACT = {
   doInspect(p) { p.status = 'inspection'; p.updated = TODAY; ui.inspect = null; persist(); toast(`Inspection requested for ${p.id}`); go('permit-' + p.id); },
   removeInspectPhoto() { openConfirm({ title: 'Remove this photo?', message: ui.inspect.photos, confirmText: 'Remove', tone: 'danger', onConfirm: () => { ui.inspect.photos = null; } }); },
   sendHelp() { const msg = document.getElementById('h-msg'); if (!msg.value.trim()) { toast('Write your message first', { err: true }); msg.focus(); return; } openConfirm({ title: `Send to ${community().name}?`, message: 'They reply to your email address. Replies also appear in your notifications.', confirmText: 'Send message', icon: 'send', onConfirm: () => toast('Message sent (preview)') }); },
-  pdfPage(t) { ui.page = Number(t.dataset.id); render(); },
-  openSign() { ui.modal = { type: 'sign', data: { name: S.profile.name, ok: false } }; render(); },
+  openSign(t) { ui.signMode = (t && t.dataset.mode) || ui.signMode || 'draw'; ui.modal = { type: 'sign', data: { upload: null, orig: null, removeBg: true } }; render(); },
   sigClear() { setupCanvas(); },
+  sigUploadClear() { Object.assign(ui.modal.data, { upload: null, orig: null }); render(); },
   saveSign() {
-    const m = ui.modal, errs = {};
-    if (!m.data.name.trim()) errs.name = 'Enter your full name.';
-    if (!m.data.ok) errs.ok = 'Tick the box to confirm.';
-    if (ui.signMode === 'draw' && !sigDirty) errs.draw = 'Draw your signature in the box, or switch to Type.';
-    if (Object.keys(errs).length) { m.errs = errs; const c = document.getElementById('sig-canvas'); const img = c && sigDirty ? c.toDataURL() : null; render(); if (img) restoreCanvas(img); return; }
-    S.draft.signature = ui.signMode === 'draw' ? { type: 'draw', data: document.getElementById('sig-canvas').toDataURL('image/png'), name: m.data.name } : { type: 'typed', text: m.data.name, name: m.data.name };
-    ui.modal = null; persistDraft(); toast('Signature added to page 3'); render();
+    const m = ui.modal;
+    let data;
+    if (ui.signMode === 'draw') {
+      if (!sigDirty) { m.errs = { sig: 'Draw your signature in the box, or upload an image instead.' }; render(); return; }
+      data = trimCanvas(document.getElementById('sig-canvas')).toDataURL('image/png');
+    } else {
+      if (!m.data.upload) { m.errs = { sig: 'Upload an image of your signature, or draw it instead.' }; render(); return; }
+      data = m.data.upload;
+    }
+    S.draft.signer.sig = { data, source: ui.signMode };
+    ui.modal = null; persistDraft(); toast('Signature added'); render();
   },
-  clearSign() { openConfirm({ title: 'Remove your signature?', message: 'You will need to sign again before submitting.', confirmText: 'Remove signature', tone: 'danger', onConfirm: () => { S.draft.signature = null; persist(); } }); },
+  clearSign() { openConfirm({ title: 'Remove your signature?', message: 'You will need to sign again before submitting.', confirmText: 'Remove signature', tone: 'danger', onConfirm: () => { S.draft.signer.sig = null; persistDraft(); } }); },
+  tickBox(t) { const d = S.draft, k = t.dataset.form, id = t.dataset.id; d.ticks[k] = d.ticks[k] || {}; d.ticks[k][id] = !d.ticks[k][id]; persistDraft(); render(); },
+  async downloadSigned(t) {
+    const f = S.forms.find(x => x.id === t.dataset.id);
+    if (Object.keys(validate('pdf')).length) { ui.errs.pdf = true; render(); toast('Tick every box and sign before downloading the signed copy.', { err: true }); return; }
+    try { saveBytes(await signedPdf(f, S.draft), f.published.fileName.replace(/\.pdf$/i, '') + '-signed.pdf'); toast('Signed PDF downloaded'); }
+    catch (e) { toast('Could not create the signed PDF. ' + e.message, { err: true }); }
+  },
+  downloadOriginal(t) { const f = S.forms.find(x => x.id === t.dataset.id); saveBytes(formPdf(f.published ? f.published.pdf : f.pdf), f.published ? f.published.fileName : f.fileName); },
+  adminNewForm() { ui.modal = { type: 'adminForm', data: { name: '', fileName: '', size: 0, pdf: null, appliesTo: [...ALL_TYPES] } }; render(); },
+  adminUseSample() { Object.assign(ui.modal.data, { fileName: 'buzzin-contractor-terms-sample.pdf', size: 61496, pdf: 'sample' }); if (!ui.modal.data.name) ui.modal.data.name = 'Contractor terms & community guidelines'; if (ui.modal.errs) delete ui.modal.errs.file; render(); },
+  adminCreate() {
+    const m = ui.modal, d = m.data, errs = {};
+    if (!d.name.trim()) errs.name = 'Enter a name contractors will recognise.';
+    if (!d.pdf) errs.file = 'Upload the PDF.';
+    if (!d.appliesTo.length) errs.name = errs.name || 'Choose at least one permit type.';
+    if (Object.keys(errs).length) { m.errs = errs; render(); return; }
+    const f = { id: uid('frm'), community: S.community, name: d.name.trim(), fileName: d.fileName, pdf: d.pdf, pdfRev: 0, fields: [], appliesTo: d.appliesTo, placement: 'bottom', updated: TODAY, published: null };
+    S.forms.push(f);
+    if (!persist()) { S.forms.pop(); return; }
+    ui.modal = null; ui.adminSel = null; ui.adminMode = 'add'; go('admin-form-' + f.id);
+  },
+  adminSelect(t) { ui.adminSel = t.dataset.id; render(); },
+  adminDeleteField(t) {
+    const f = curAdminForm(), i = f.fields.findIndex(x => x.id === t.dataset.id), fd = f.fields[i];
+    openConfirm({ title: 'Delete this tick box?', message: `“${fd.label}” on page ${fd.page} will be removed.`, confirmText: 'Delete tick box', tone: 'danger', onConfirm: () => { f.fields.splice(i, 1); ui.adminSel = null; f.updated = TODAY; persist(); toast('Tick box deleted', { undo: () => { f.fields.splice(i, 0, fd); persist(); render(); } }); } });
+  },
+  adminReplace() { openConfirm({ title: 'Replace the PDF?', message: 'Tick boxes stay in the same place on each page. Check their positions after uploading.', confirmText: 'Choose new PDF', icon: 'refresh', onConfirm: () => document.getElementById('admin-replace').click() }); },
+  adminPublish(t) {
+    const f = S.forms.find(x => x.id === t.dataset.id);
+    if (!f.fields.length) { toast('Add at least one tick box before publishing.', { err: true }); return; }
+    if (!f.appliesTo.length) { toast('Choose at least one permit type under “Required for”.', { err: true }); return; }
+    if (f.published && formStatus(f)[1] === 'ok') { toast('No changes to publish.'); return; }
+    const v = f.published ? f.published.version + 1 : 1;
+    openConfirm({ title: `Publish version ${v}?`, message: `Contractors who haven’t submitted yet will be asked to tick and sign version ${v}. Requests already submitted keep the version they signed.`, confirmText: `Publish version ${v}`, icon: 'send', onConfirm: () => { f.published = Object.assign(clone(pubSubset(f)), { version: v, fileName: f.fileName, at: TODAY }); f.updated = TODAY; persist(); toast(`Version ${v} published`); } });
+  },
+  adminDeleteForm(t) {
+    const i = S.forms.findIndex(x => x.id === t.dataset.id), f = S.forms[i];
+    openConfirm({ title: `Delete “${f.name}”?`, message: 'Contractors will no longer be asked to sign it. Copies already signed on submitted requests are kept.', confirmText: 'Delete form', tone: 'danger', onConfirm: () => { S.forms.splice(i, 1); persist(); toast('Form deleted'); go('admin-forms'); } });
+  },
   addMaterial() { ui.modal = { type: 'material', data: { name: '', kind: 'Material', qty: 1, unit: 'pcs', removed: 'Yes', notes: '' } }; render(); },
   editMaterial(t) { ui.modal = { type: 'material', data: clone(S.draft.materials.find(m => m.id === t.dataset.id)) }; render(); },
   saveMaterial(t) {
@@ -1299,11 +1552,9 @@ const ACT = {
     if (!P.confirm) e.confirm = 'Confirm your new password.';
     ui.formErr = e;
     if (Object.keys(e).length) { render(); return; }
-    openConfirm({ title: 'Change your password?', message: 'You will be signed out on all other devices.', confirmText: 'Change password', icon: 'key', onConfirm: () => { ui.pw = { current: '', next: '', confirm: '', show: false }; S.sessions = S.sessions.filter(s => s.current); persist(); toast('Password changed. Other devices were signed out.'); } });
+    openConfirm({ title: 'Change your password?', message: 'You will use the new password the next time you sign in.', confirmText: 'Change password', icon: 'key', onConfirm: () => { ui.pw = { current: '', next: '', confirm: '', show: false }; persist(); toast('Password changed'); } });
   },
-  endSession(t) { const s = S.sessions.find(x => x.id === t.dataset.id); openConfirm({ title: `Sign out ${s.device}?`, message: `${s.where} · ${s.when}. Anyone using it will need to sign in again.`, confirmText: 'Sign out device', tone: 'warn', icon: 'logout', onConfirm: () => { S.sessions = S.sessions.filter(x => x !== s); persist(); toast('Device signed out'); } }); },
-  endAllSessions() { openConfirm({ title: 'Sign out all other devices?', message: `${plural(S.sessions.length - 1, 'device')} will be signed out. You stay signed in here.`, confirmText: 'Sign out all', tone: 'warn', icon: 'logout', onConfirm: () => { S.sessions = S.sessions.filter(x => x.current); persist(); toast('All other devices signed out'); } }); },
-  deactivate() { openConfirm({ title: 'Deactivate your account?', message: `${S.company.name} and ${plural(S.team.length, 'team member')} lose access to every community. Approved passes are cancelled.`, confirmText: 'Deactivate account', tone: 'danger', icon: 'alert', requireText: 'DEACTIVATE', onConfirm: () => toast('Account deactivation requested (preview)') }); },
+  deactivate() { openConfirm({ title: 'Deactivate your account?', message: `${S.company.name} loses access to every community. Approved passes are cancelled.`, confirmText: 'Deactivate account', tone: 'danger', icon: 'alert', requireText: 'DEACTIVATE', onConfirm: () => toast('Account deactivation requested (preview)') }); },
   addCompanyDoc() { ui.modal = { type: 'companyDoc', data: { name: 'Contractor all-risk insurance', fileObj: null, expiry: '', noExpiry: false } }; render(); },
   editCompanyDoc(t) { const d = S.companyDocs.find(x => x.id === t.dataset.id); ui.modal = { type: 'companyDoc', data: { id: d.id, name: d.name, fileObj: d.file ? { name: d.file } : null, expiry: d.expiry || '', noExpiry: !!d.noExpiry } }; render(); },
   saveCompanyDoc() {
@@ -1316,27 +1567,19 @@ const ACT = {
     ui.modal = null; persist(); toast(`${d.name} saved`); render();
   },
   removeCompanyDoc(t) { const i = S.companyDocs.findIndex(x => x.id === t.dataset.id), d = S.companyDocs[i]; openConfirm({ title: `Remove ${d.name}?`, message: d.required ? 'This document is required by your communities. New passes may be rejected without it.' : 'Communities will no longer see this document.', confirmText: 'Remove document', tone: 'danger', onConfirm: () => { S.companyDocs.splice(i, 1); persist(); toast(`${d.name} removed`, { undo: () => { S.companyDocs.splice(i, 0, d); persist(); render(); } }); } }); },
-  inviteMember() { ui.modal = { type: 'invite', data: { name: '', email: '', role: 'Requester' } }; render(); },
-  sendInvite() { const m = ui.modal, d = m.data, errs = {}; if (!d.name.trim()) errs.name = 'Enter their name.'; if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email)) errs.email = 'Enter a valid email address.'; else if (S.team.some(t => t.email === d.email)) errs.email = 'This person is already on your team.'; if (Object.keys(errs).length) { m.errs = errs; render(); return; } S.team.push({ id: uid('t'), name: d.name, email: d.email, role: d.role, status: 'invited', last: 'Invite sent ' + fmtS(TODAY) }); ui.modal = null; persist(); toast(`Invite sent to ${d.email}`); render(); },
-  resendInvite(t) { const m = S.team.find(x => x.id === t.dataset.id); m.last = 'Invite sent ' + fmtS(TODAY); persist(); toast(`Invite resent to ${m.email}`); render(); },
-  removeMember(t) { const m = S.team.find(x => x.id === t.dataset.id); openConfirm({ title: `Remove ${m.name}?`, message: `${m.email} will lose access to the portal immediately. Passes they submitted stay active.`, confirmText: 'Remove member', tone: 'danger', onConfirm: () => { S.team = S.team.filter(x => x !== m); persist(); toast(`${m.name} removed`); } }); },
 };
-function restoreCanvas(src) { const c = document.getElementById('sig-canvas'); if (!c) return; const img = new Image(); img.onload = () => { const x = c.getContext('2d'); x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.drawImage(img, 0, 0); x.restore(); sigDirty = true; }; img.src = src; }
 const CHANGE = {
   sort(el) { ui.sort = el.value; render(); },
   peopleFilter(el) { ui.peopleFilter = el.value; render(); },
   helpRef(el) { ui.helpRef = el.value; },
   showPw(el) { ui.pw.show = el.checked; render(); },
-  signMode(el) { ui.signMode = el.value; render(); },
+  signMode(el) { ui.signMode = el.value; if (ui.modal) ui.modal.errs = null; render(); },
+  async sigBg(el) { const d = ui.modal.data; d.removeBg = el.checked; d.upload = await processSig(d.orig, d.removeBg); render(); },
+  adminMode(el) { ui.adminMode = el.value; render(); },
   twofa(el) {
     el.checked = S.twofa;
     if (S.twofa) openConfirm({ title: 'Turn off two-step verification?', message: 'Your account will be protected by your password only.', confirmText: 'Turn off', tone: 'danger', icon: 'shield', onConfirm: () => { S.twofa = false; persist(); toast('Two-step verification turned off'); } });
     else openConfirm({ title: 'Turn on two-step verification?', message: `We'll text a 6-digit code to ${S.profile.phone} each time you sign in on a new device.`, confirmText: 'Turn on', icon: 'shield', onConfirm: () => { S.twofa = true; persist(); toast('Two-step verification is on'); } });
-  },
-  changeRole(el) {
-    const m = S.team.find(x => x.id === el.dataset.id), to = el.value, from = m.role;
-    el.value = from;
-    openConfirm({ title: `Make ${m.name} ${/^[AEIOU]/.test(to) ? 'an' : 'a'} ${to}?`, message: ROLES[to], confirmText: 'Change role', icon: 'users', onConfirm: () => { m.role = to; persist(); toast(`${m.name} is now ${to}`); } });
   },
 };
 
@@ -1403,6 +1646,82 @@ document.addEventListener('change', e => {
     if (el.hasAttribute('data-rerender') || el.closest('[data-rerender-all]')) render();
   }
 });
+/* ================= Signature upload & admin form editor events ================= */
+async function takeSigFile(file) {
+  if (!file) return;
+  if (!/^image\/(png|jpe?g)$/.test(file.type)) { toast('Use a PNG or JPG image of your signature.', { err: true }); return; }
+  if (file.size > 2 * 1048576) { toast('This image is larger than 2 MB. Choose a smaller one.', { err: true }); return; }
+  const orig = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(file); });
+  try { const d = ui.modal.data; d.orig = orig; d.removeBg = true; d.upload = await processSig(orig, true); ui.modal.errs = null; render(); }
+  catch (e) { toast(e.message, { err: true }); }
+}
+document.addEventListener('change', e => {
+  const el = e.target;
+  if (el.dataset.sigfile !== undefined) { const f = el.files[0]; el.value = ''; takeSigFile(f); return; }
+  if (el.dataset.adminpdf) {
+    const file = el.files[0], target = el.dataset.adminpdf; el.value = '';
+    readPdf(file).then(r => {
+      if (!r) return;
+      if (target === 'new') { Object.assign(ui.modal.data, r); if (!ui.modal.data.name) ui.modal.data.name = r.fileName.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' '); if (ui.modal.errs) delete ui.modal.errs.file; }
+      else { const f = S.forms.find(x => x.id === target), old = { pdf: f.pdf, fileName: f.fileName }; Object.assign(f, { pdf: r.pdf, fileName: r.fileName, pdfRev: (f.pdfRev || 0) + 1, updated: TODAY }); if (!persist()) Object.assign(f, old); else toast(`${r.fileName} uploaded. Check the tick box positions.`); }
+      render();
+    }).catch(err => toast(err.message, { err: true }));
+    return;
+  }
+  if (el.dataset.mapplies !== undefined) { const a = ui.modal.data.appliesTo; ui.modal.data.appliesTo = el.checked ? [...new Set([...a, el.value])] : a.filter(x => x !== el.value); return; }
+  const f = route().startsWith('admin-form-') ? curAdminForm() : null;
+  if (!f) return;
+  if (el.dataset.afield) {
+    const fd = f.fields.find(x => x.id === ui.adminSel); if (!fd) return;
+    const k = el.dataset.afield;
+    fd[k] = k === 'required' ? el.checked : k === 'size' ? Number(el.value) : el.value;
+    f.updated = TODAY; persist(); render(); return;
+  }
+  if (el.dataset.aform) {
+    const k = el.dataset.aform;
+    if (k === 'appliesTo') f.appliesTo = el.checked ? [...new Set([...f.appliesTo, el.value])] : f.appliesTo.filter(x => x !== el.value);
+    else f[k] = el.value;
+    f.updated = TODAY; persist(); render();
+  }
+}, true);
+document.addEventListener('input', e => {
+  const el = e.target, f = route().startsWith('admin-form-') ? curAdminForm() : null;
+  if (!f) return;
+  if (el.dataset.afield === 'label') { const fd = f.fields.find(x => x.id === ui.adminSel); if (fd) { fd.label = el.value; persist(); } }
+  if (el.dataset.aform === 'name') { f.name = el.value; persist(); }
+});
+document.addEventListener('pointerdown', e => {
+  const pageEl = e.target.closest('[data-admin-page]');
+  if (!pageEl || e.button !== 0) return;
+  const f = curAdminForm(); if (!f) return;
+  const rect = pageEl.getBoundingClientRect(), page = Number(pageEl.dataset.adminPage);
+  const pct = ev => [Math.min(98, Math.max(2, (ev.clientX - rect.left) / rect.width * 100)), Math.min(98, Math.max(2, (ev.clientY - rect.top) / rect.height * 100))];
+  const boxEl = e.target.closest('[data-box]');
+  if (boxEl) {
+    e.preventDefault();
+    const fd = f.fields.find(x => x.id === boxEl.dataset.box), sx = e.clientX, sy = e.clientY;
+    let moved = false;
+    const move = ev => { if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 4) return; moved = true; const [x, y] = pct(ev); boxEl.style.left = x + '%'; boxEl.style.top = y + '%'; fd.x = +x.toFixed(2); fd.y = +y.toFixed(2); };
+    const up = () => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); ui.adminSel = fd.id; if (moved) { f.fields.sort((a, b) => a.page - b.page || a.y - b.y); f.updated = TODAY; persist(); } render(); };
+    addEventListener('pointermove', move); addEventListener('pointerup', up);
+    return;
+  }
+  if ((ui.adminMode || 'add') !== 'add' || e.target.tagName !== 'IMG') { if (ui.adminSel) { ui.adminSel = null; render(); } return; }
+  const [x, y] = pct(e);
+  const fd = { id: uid('b'), page, x: +x.toFixed(2), y: +y.toFixed(2), size: 2.8, label: `I agree to clause ${f.fields.length + 1}`, required: true };
+  f.fields.push(fd); f.fields.sort((a, b) => a.page - b.page || a.y - b.y);
+  ui.adminSel = fd.id; f.updated = TODAY; persist(); render();
+  setTimeout(() => { const l = document.getElementById('af-label'); if (l) { l.focus({ preventScroll: true }); l.select(); } }, 0);
+});
+document.addEventListener('keydown', e => {
+  if (!route().startsWith('admin-form-') || !ui.adminSel || ui.modal || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  const f = curAdminForm(), fd = f && f.fields.find(x => x.id === ui.adminSel); if (!fd) return;
+  const step = e.shiftKey ? 1 : 0.2, d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+  if (d) { e.preventDefault(); fd.x = +(fd.x + d[0]).toFixed(2); fd.y = +(fd.y + d[1]).toFixed(2); f.updated = TODAY; persist(); render(); }
+  if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); ACT.adminDeleteField({ dataset: { id: fd.id } }); }
+});
+document.addEventListener('drop', e => { const z = e.target.closest('[data-sigdrop]'); if (z) { e.preventDefault(); takeSigFile(e.dataTransfer.files[0]); } });
+document.addEventListener('dragover', e => { if (e.target.closest('[data-sigdrop]')) e.preventDefault(); });
 function handleFile(bind, file) {
   if (!file) return;
   if (file.size > 10 * 1048576) { toast(`${file.name} is larger than 10 MB. Choose a smaller file.`, { err: true }); return; }

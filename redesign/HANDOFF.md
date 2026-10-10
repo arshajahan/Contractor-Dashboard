@@ -32,7 +32,7 @@ Community picker is now a **searchable dropdown** in the top bar (with "Request 
 | Update Your Profile: Name*, Email Address*, Phone Number | Settings › My profile (same fields, plus photo, job title, language, time zone, date format) |
 | Separate "Save Changes" button per card | One sticky "Unsaved changes · Discard · Save" bar; leaving the page with unsaved changes asks first |
 
-New settings sections: Company documents (insurance, VAT certificate… with expiry status), Team members (invite, roles, remove), Communities (switch, leave, request access), Notifications (email / SMS / in-portal per event), Two-step verification, Signed-in devices, Deactivate account.
+New settings sections: Company documents (insurance, VAT certificate… with expiry status), Communities (switch, leave, request access), Notifications (email / SMS / in-portal per event), Two-step verification, Deactivate account. (No Team members or signed-in devices sections.)
 
 ## Old prototype screen → new location
 
@@ -45,7 +45,7 @@ New settings sections: Company documents (insurance, VAT certificate… with exp
 | materials, addMaterial | Materials step + Add/Edit item popup, remove with Undo |
 | workvehicles, personnel | Vehicles step, Workers step (expired IDs/registrations are blocked) |
 | documents, documentsNoExpiry | Documents step (upload, replace, remove, expiry or "No expiry date") |
-| pdf, sign, pdfSaved | Fill & sign step + signature popup (draw or type) |
+| pdf, sign, pdfSaved | Sign terms step: the community's own PDF with tick boxes, then name, position and a drawn or uploaded signature (see below) |
 | review, submitted | Review & submit → confirmation popup → Request submitted |
 | pending, approved, changes | Pass detail page (status timeline, QR, documents, "Update and resubmit") |
 | people, addPerson | Employees + Add/Edit employee popup |
@@ -54,6 +54,26 @@ New settings sections: Company documents (insurance, VAT certificate… with exp
 | community | Community dropdown in the top bar |
 | help, completion, visitor, menu | Help & contact, Final inspection, Visitor pass, mobile "More" drawer |
 
+## Community terms PDF (new)
+
+**Community admin side** (`#admin-forms`, or account menu › Community admin view):
+1. Upload the community's terms / guidelines as a PDF.
+2. Click next to each clause to place a tick box. Drag to move, arrow keys to nudge, Delete to remove. Each box has a label, Required on/off and a size.
+3. Choose where the signature goes: bottom of the last page, or a new last page.
+4. Choose which permit types need it, then **Publish**. Each publish is a new version. Contractors who haven't submitted yet sign the new version. Submitted requests keep the version they signed.
+
+**Contractor side** (step 6, "Sign terms"):
+- The PDF is shown page by page with the tick boxes on top. Every required box must be ticked. Missing ones turn red.
+- Then the contractor enters their full name and position, adds a signature by **drawing** or **uploading a PNG/JPG** (there is no typed signature), and confirms they are authorised to sign. Uploaded images get their white background removed automatically, which can be switched off.
+- **Download signed PDF** produces the real file: ticks drawn into each box, plus a block at the bottom with company, name, position, date and signature, and a reference line (date, boxes ticked, version, request reference).
+
+Implementation notes: store each form's PDF, field positions as % of page size, and published version snapshots. Store the signed PDF (or the inputs to regenerate it) with the submitted request. The prototype uses pdf.js to show the PDF and pdf-lib to stamp it (both in `redesign/vendor/`). The sample PDF is in `redesign/samples/`.
+
+## Expiry rule
+
+- **Expired** documents (worker ID, vehicle registration, uploaded permit documents) block the request.
+- Documents **close to expiry** (within 30 days, or ending before the work ends) never block. The contractor sees a warning with the number of days left: the community may reject the permit, so please upload an updated document if you have one. The warning appears on the Vehicles, Workers, Documents and Review steps.
+
 ## Confirmation popups
 
-Submit request · Resubmit after changes · Submit visitor pass · Send inspection request (warns if checklist incomplete) · Send message to community · Delete draft · Start new request when a draft exists · Duplicate (replaces draft) · Withdraw request / Cancel pass (with reason) · Remove material / employee / vehicle / uploaded file / logo / signature / company document / team member · Change team role · Save company details · Change email · Change password · Turn 2-step verification on/off · Sign out device / all devices · Sign out · Switch community during a request · Leave community (type LEAVE) · Withdraw access request · Deactivate account (type DEACTIVATE) · Discard unsaved changes · Leave page with unsaved changes · Share QR codes.
+Submit request · Resubmit after changes · Submit visitor pass · Send inspection request (warns if checklist incomplete) · Send message to community · Delete draft · Start new request when a draft exists · Duplicate (replaces draft) · Withdraw request / Cancel pass (with reason) · Remove material / employee / vehicle / uploaded file / logo / signature / company document · Save company details · Change email · Change password · Turn 2-step verification on/off · Sign out · Switch community during a request · Leave community (type LEAVE) · Withdraw access request · Deactivate account (type DEACTIVATE) · Discard unsaved changes · Leave page with unsaved changes · Share QR codes. · Admin: delete tick box · replace PDF · publish version · delete form.

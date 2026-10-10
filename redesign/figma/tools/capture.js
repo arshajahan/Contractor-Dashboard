@@ -10,17 +10,24 @@ const W = { d: [1440, 900], m: [390, 844] };
 
 const click = s => async pg => { await pg.click(s); await pg.waitForTimeout(150); };
 const seq = (...fs) => async pg => { for (const f of fs) await f(pg); };
+const waitPdf = async pg => { await pg.waitForFunction(() => !document.querySelector('.pdf-loading'), null, { timeout: 20000 }); await pg.waitForTimeout(200); };
+const drawSig = async pg => {
+  await pg.click('[data-act="openSign"][data-mode="draw"]'); await pg.waitForTimeout(150);
+  const c = await pg.locator('#sig-canvas').boundingBox();
+  await pg.mouse.move(c.x + 60, c.y + 120); await pg.mouse.down();
+  for (let i = 0; i <= 40; i++) await pg.mouse.move(c.x + 60 + i * 11, c.y + 95 + Math.sin(i / 3.2) * 38 - i * 0.6);
+  await pg.mouse.up(); await pg.click('[data-act="saveSign"]'); await pg.waitForTimeout(150);
+};
 const completeDraft = async pg => {
   await pg.evaluate(() => { location.hash = 'documents'; }); await pg.waitForTimeout(250);
   await pg.setInputFiles('#up-scope', { name: 'scope-of-work-painting.pdf', mimeType: 'application/pdf', buffer: Buffer.alloc(184000) });
   await pg.click('label[for="doc-scope-noexp"]'); await pg.waitForTimeout(100);
-  await pg.evaluate(() => { location.hash = 'pdf'; }); await pg.waitForTimeout(250);
-  await pg.fill('#pdf-1-company', 'Sample Contracting'); await pg.fill('#pdf-1-responsible', 'Priya Nair'); await pg.check('#f-pdf1 input');
-  await pg.click('[data-act="pdfPage"][data-id="2"]'); await pg.check('#f-pdf2 input');
-  await pg.click('[data-act="pdfPage"][data-id="3"]'); await pg.check('#f-pdf3 input');
-  await pg.click('[data-act="openSign"]'); await pg.click('label:has(input[value="type"])'); await pg.check('#sg-ok'); await pg.click('[data-act="saveSign"]'); await pg.waitForTimeout(100);
+  await pg.evaluate(() => { location.hash = 'pdf'; }); await waitPdf(pg);
+  const n = await pg.locator('.pdf-box').count();
+  for (let i = 0; i < n; i++) await pg.locator('.pdf-box').nth(i).click();
+  await drawSig(pg);
+  await pg.click('label[for="f-sg-auth"]'); await pg.waitForTimeout(100);
   await pg.evaluate(() => { location.hash = 'review'; }); await pg.waitForTimeout(250);
-  await pg.evaluate(() => document.querySelector('.toasts').innerHTML = '');
 };
 const STATES = [
   ['01 Overview', 'home', 'dm'],
@@ -43,10 +50,13 @@ const STATES = [
   ['18 Remove item – confirm', 'materials', 'dm', click('[data-act="removeMaterial"] >> nth=0'), true],
   ['19 Step 3 Vehicles', 'workvehicles', 'dm'],
   ['20 Step 4 Workers', 'personnel', 'dm'],
+  ['20b Workers – expiry warning', 'personnel', 'dm', async pg => { await pg.check('input[value="p3"]'); await pg.evaluate(() => { location.hash = 'documents'; }); await pg.waitForTimeout(150); await pg.evaluate(() => { location.hash = 'personnel'; }); await pg.waitForTimeout(250); }],
   ['21 Step 5 Documents', 'documents', 'dm'],
-  ['22 Step 6 Fill & sign', 'pdf', 'dm'],
-  ['23 Signature', 'pdf', 'dm', seq(click('[data-act="pdfPage"][data-id="3"]'), click('[data-act="openSign"]')), true],
-  ['23b Step 6 Signed', 'pdf', 'd', seq(completeDraft, async pg => { await pg.evaluate(() => { location.hash = 'pdf'; }); await pg.waitForTimeout(200); await pg.click('[data-act="pdfPage"][data-id="3"]'); })],
+  ['22 Step 6 Sign terms', 'pdf', 'dm', waitPdf],
+  ['22b Sign terms – boxes missing', 'pdf', 'd', seq(waitPdf, click('[data-act="wzNext"]'))],
+  ['23 Signature – draw', 'pdf', 'dm', seq(waitPdf, click('[data-act="openSign"][data-mode="draw"]')), true],
+  ['23a Signature – upload', 'pdf', 'dm', seq(waitPdf, click('[data-act="openSign"][data-mode="upload"]')), true],
+  ['23b Step 6 Signed', 'pdf', 'dm', seq(completeDraft, async pg => { await pg.evaluate(() => { location.hash = 'pdf'; }); await waitPdf(pg); })],
   ['24 Step 7 Review', 'review', 'dm', completeDraft],
   ['25 Submit – confirm', 'review', 'dm', seq(completeDraft, async pg => { await pg.check('#f-consent'); }, click('[data-act="submitRequest"]')), true],
   ['26 Request submitted', 'submitted-BZ-1048', 'dm'],
@@ -68,8 +78,6 @@ const STATES = [
   ['42 Change password – confirm', 'settings-security', 'd', seq(async pg => { await pg.fill('#pw-current', 'OldPass#1'); await pg.fill('#pw-next', 'NewPass#2026'); await pg.fill('#pw-confirm', 'NewPass#2026'); }, click('[data-act="changePassword"]')), true],
   ['43 Deactivate – confirm', 'settings-security', 'd', click('.card-foot [data-act="deactivate"]'), true],
   ['44 Settings – Company documents', 'settings-documents', 'dm'],
-  ['45 Settings – Team members', 'settings-team', 'dm'],
-  ['46 Invite member', 'settings-team', 'd', click('[data-act="inviteMember"]'), true],
   ['47 Settings – Communities', 'settings-communities', 'dm'],
   ['48 Leave community – confirm', 'settings-communities', 'd', click('[data-act="leaveCommunity"] >> nth=1'), true],
   ['49 Settings – Notifications', 'settings-notifications', 'dm'],
@@ -78,6 +86,10 @@ const STATES = [
   ['52 Sign out – confirm', 'home', 'd', seq(click('[data-pop="user"]'), click('[data-act="signOut"]')), true],
   ['53 Mobile menu', 'home', 'm', click('[data-act="openDrawer"]'), true],
   ['54 Overview – dark mode', 'home', 'd', null, false, 'dark'],
+  ['55 Admin – Permit forms', 'admin-forms', 'dm'],
+  ['56 Admin – Upload PDF form', 'admin-forms', 'd', seq(click('.page-head [data-act="adminNewForm"]'), click('[data-act="adminUseSample"]')), true],
+  ['57 Admin – Place tick boxes', 'admin-form-frm1', 'd', seq(waitPdf, click('[data-act="adminSelect"] >> nth=1'))],
+  ['58 Admin – Publish confirm', 'admin-form-frm1', 'd', seq(waitPdf, async pg => { await pg.click('[data-act="adminSelect"] >> nth=0'); await pg.fill('#af-label', 'I agree to the working hours'); await pg.press('#af-label', 'Tab'); await pg.waitForTimeout(100); }, click('.page-head [data-act="adminPublish"]')), true],
 ];
 
 function extractor(overlay) {
@@ -197,12 +209,17 @@ function extractor(overlay) {
     const r = el.getBoundingClientRect();
     if (el instanceof SVGSVGElement) { if (r.width && r.height) out.push({ t: 'svg', name: 'Icon', x: r.left - ox, y: r.top - oy, w: r.width, h: r.height, svg: svgOf(el, cs) }); return; }
     if (el.tagName === 'CANVAS') { out.push({ t: 'frame', name: 'Signature pad', x: r.left - ox, y: r.top - oy, w: r.width, h: r.height, fill: { r: 1, g: 1, b: 1, a: 1 }, stroke: { r: .78, g: .82, b: .86, a: 1 }, sw: [1, 1, 1, 1], radius: [8, 8, 8, 8], children: [] }); return; }
-    if (el.tagName === 'IMG') { out.push({ t: 'frame', name: 'Image', x: r.left - ox, y: r.top - oy, w: r.width, h: r.height, fill: { r: .93, g: .94, b: .96, a: 1 }, children: [] }); return; }
+    if (el.tagName === 'IMG') {
+      let data = null;
+      try { const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(r.width)); c.height = Math.max(1, Math.round(r.height)); c.getContext('2d').drawImage(el, 0, 0, c.width, c.height); data = /^data:image\/png/.test(el.src) ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', 0.85); } catch (e) { /* cross-origin */ }
+      out.push(data ? { t: 'image', name: el.alt || 'Image', x: r.left - ox, y: r.top - oy, w: r.width, h: r.height, data } : { t: 'frame', name: 'Image', x: r.left - ox, y: r.top - oy, w: r.width, h: r.height, fill: { r: .93, g: .94, b: .96, a: 1 }, children: [] });
+      return;
+    }
     if (/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) { if (el.type === 'file' || el.type === 'hidden') return; if (r.width < 4) return; control(el, cs, r, ox, oy, out); return; }
     const fp = frameProps(cs);
     const clip = cs.overflowX !== 'visible' || cs.overflowY !== 'visible';
     const op = Number(cs.opacity);
-    const significant = el.matches('.card,.btn,.badge,.modal,.popover,.field,.kpi,.nav-item,.topbar,.sidebar,.actionbar,.bottom-nav,.select-row,.choice,.list-row,.alert,.tab,.step,.chip,.file-row,.dropzone,.page-head,.card-head,.card-body,.card-foot,.toolbar,tr,.savebar,.switch,.segmented,.combo-btn,.pop-item,.paper,.form-sec,.set-link,.timeline,.tl');
+    const significant = el.matches('.card,.btn,.badge,.pdf-page,.pdf-box,.pdf-sig,.modal,.popover,.field,.kpi,.nav-item,.topbar,.sidebar,.actionbar,.bottom-nav,.select-row,.choice,.list-row,.alert,.tab,.step,.chip,.file-row,.dropzone,.page-head,.card-head,.card-body,.card-foot,.toolbar,tr,.savebar,.switch,.segmented,.combo-btn,.pop-item,.paper,.form-sec,.set-link,.timeline,.tl');
     const emit = Object.keys(fp).length || clip || op < 1 || significant || depth === 0;
     let target = out, nx = ox, ny = oy;
     if (emit && r.width > 0 && r.height > 0) {
