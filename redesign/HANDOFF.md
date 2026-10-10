@@ -69,11 +69,20 @@ New settings sections: Company documents (insurance, VAT certificate… with exp
 
 Implementation notes: store each form's PDF, field positions as % of page size, and published version snapshots. Store the signed PDF (or the inputs to regenerate it) with the submitted request. The prototype uses pdf.js to show the PDF and pdf-lib to stamp it (both in `redesign/vendor/`). The sample PDF is in `redesign/samples/`.
 
+## Company logo
+
+- Accepts PNG (including transparent), JPG, SVG and WebP, up to 5 MB. It is resized to at most 480 px on its longest side.
+- It always shows inside a fixed tile with `object-fit: contain`, so wide, tall and square logos fit without cropping or stretching. Tiles are 176 × 84 px in Settings and 52 × 36 px in the sidebar.
+- **Background:** the tile is dark for white or light logos on a transparent background, and light for everything else. The average brightness of the visible pixels decides. The contractor can override it with Light or Dark. Store `{ image, tone, bg }`.
+- With no logo, the company initials are shown.
+
 ## Expiry rule
 
 - **Expired** documents (worker ID, vehicle registration, uploaded permit documents) block the request.
-- Documents **close to expiry** (within 30 days, or ending before the work ends) never block. The contractor sees a warning with the number of days left: the community may reject the permit, so please upload an updated document if you have one. The warning appears on the Vehicles, Workers, Documents and Review steps.
+- Documents **close to expiry** (within 30 days, or ending before the work ends) never block. The contractor sees a warning with the number of days left: the community may reject the permit, so please upload an updated document if you have one. The warning appears on the Vehicles, Workers, Documents and Review steps as soon as an item is selected.
+- Pressing **Continue** on those steps opens a popup that lists each item and its days left, with **OK, continue** or **Stay and update**. The submit confirmation repeats the list.
+- An expired trade licence or required company document blocks submission, with a link to Settings.
 
 ## Confirmation popups
 
-Submit request · Resubmit after changes · Submit visitor pass · Send inspection request (warns if checklist incomplete) · Send message to community · Delete draft · Start new request when a draft exists · Duplicate (replaces draft) · Withdraw request / Cancel pass (with reason) · Remove material / employee / vehicle / uploaded file / logo / signature / company document · Save company details · Change email · Change password · Turn 2-step verification on/off · Sign out · Switch community during a request · Leave community (type LEAVE) · Withdraw access request · Deactivate account (type DEACTIVATE) · Discard unsaved changes · Leave page with unsaved changes · Share QR codes. · Admin: delete tick box · replace PDF · publish version · delete form.
+Submit request · Resubmit after changes · Submit visitor pass · Send inspection request (warns if checklist incomplete) · Send message to community · Delete draft · Start new request when a draft exists · Duplicate (replaces draft) · Withdraw request / Cancel pass (with reason) · Remove material / employee / vehicle / uploaded file / logo / signature / company document · Save company details · Change email · Change password · Turn 2-step verification on/off · Sign out · Switch community during a request · Leave community (type LEAVE) · Withdraw access request · Deactivate account (type DEACTIVATE) · Discard unsaved changes · Leave page with unsaved changes · Share QR codes. · Admin: delete tick box · replace PDF · publish version · delete form. · Continue with documents close to expiry.

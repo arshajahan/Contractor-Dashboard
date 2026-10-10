@@ -172,7 +172,7 @@ function seed() {
       { id: 'v2', plate: 'Sharjah 3 45821', type: 'Pickup', make: 'Nissan Navara', color: 'Silver', regExpiry: '2026-10-30', file: 'mulkiya-45821.pdf' },
       { id: 'v3', plate: 'Ajman B 7710', type: 'Truck', make: 'Isuzu NPR', color: 'White', regExpiry: '2026-09-15', file: 'mulkiya-7710.pdf' },
     ],
-    company: { name: 'Sample Contracting', trn: '100000678922', licence: { name: 'trade-licence-2026.pdf', size: 412000 }, licenceExpiry: '2027-03-14', logo: true },
+    company: { name: 'Sample Contracting', trn: '100000678922', licence: { name: 'trade-licence-2026.pdf', size: 412000 }, licenceExpiry: '2027-03-14', logo: null },
     billing: { legal: 'Sample Contracting FZCO', addr1: 'Dubai Silicon Oasis', addr2: 'Technohub 1', country: 'United Arab Emirates', state: 'Dubai', city: 'Dubai', postal: '00000' },
     profile: { name: 'Alex Morgan', email: 'alex@samplecontracting.ae', phone: '+971 50 000 0000', title: 'Operations manager', lang: 'English', tz: 'Asia/Dubai (GST, UTC+4)', datefmt: 'DD MMM YYYY' },
     companyDocs: [
@@ -306,6 +306,29 @@ function comboList(o) {
   return items.map(x => { const sel = Array.isArray(val) ? val.includes(x.value) : val === x.value; return `<button type="button" class="pop-item" role="option" aria-selected="${sel}" data-act="comboPick" data-id="${o.id}" data-v="${esc(x.value)}">${Array.isArray(val) ? `<input type="checkbox" tabindex="-1" ${sel ? 'checked' : ''} style="accent-color:var(--side)">` : ''}<span class="grow">${esc(x.label)}${x.meta ? `<small>${esc(x.meta)}</small>` : ''}</span>${sel && !Array.isArray(val) ? ic('check', 'tick') : ''}</button>`; }).join('');
 }
 
+/* ================= Company logo ================= */
+// Logos are shown with object-fit: contain inside a fixed tile, so wide, tall and square logos all fit without cropping.
+// The tile background follows the logo: white/light logos get a dark tile, dark logos a light one.
+function logoTile(logo, name, size) {
+  if (!logo || !logo.data) return `<span class="logo-tile ${size} initials" aria-label="${esc(name)}">${initials(name)}</span>`;
+  const bg = logo.bg && logo.bg !== 'auto' ? logo.bg : (logo.tone === 'light' ? 'dark' : 'light');
+  return `<span class="logo-tile ${size} on-${bg}"><img src="${logo.data}" alt="${esc(name)} logo"></span>`;
+}
+async function prepareLogo(file) {
+  const src = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(file); });
+  const img = await loadImg(src);
+  const w0 = img.naturalWidth || 400, h0 = img.naturalHeight || 400, scale = Math.min(1, 480 / Math.max(w0, h0));
+  const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w0 * scale)); c.height = Math.max(1, Math.round(h0 * scale));
+  const x = c.getContext('2d'); x.drawImage(img, 0, 0, c.width, c.height);
+  // Average brightness of the visible pixels decides light or dark.
+  const p = x.getImageData(0, 0, c.width, c.height).data;
+  let sum = 0, n = 0, transparent = 0;
+  for (let i = 0; i < p.length; i += 16) { const a = p[i + 3] / 255; if (a < 0.15) { transparent++; continue; } sum += (0.2126 * p[i] + 0.7152 * p[i + 1] + 0.0722 * p[i + 2]) / 255 * a; n += a; }
+  const lum = n ? sum / n : 0.5;
+  const hasTransparency = transparent > p.length / 16 * 0.05;
+  return { data: c.toDataURL('image/png'), tone: hasTransparency && lum > 0.62 ? 'light' : 'dark', bg: 'auto', name: file.name };
+}
+
 /* ================= Shell ================= */
 function route() { return decodeURIComponent(location.hash.slice(1)) || 'home'; }
 function go(r) { if (route() === r) render(); else location.hash = r; }
@@ -328,7 +351,7 @@ function sidebar(r) {
   <nav class="side-nav" aria-label="Main">${NAV.map(([g, items]) => `<div class="side-label">${g}</div>${items.map(([k, l, i]) => `<button class="nav-item ${nk === k ? 'active' : ''}" data-go="${k}" ${nk === k ? 'aria-current="page"' : ''}>${ic(i)}<span>${l}</span>${k === 'permits' && action ? `<span class="count" title="${action} need your action">${action}</span>` : ''}</button>`).join('')}`).join('')}</nav>
   <div class="side-foot">
     <div class="side-help"><strong>Need help with a pass?</strong><p>${esc(community().name)} reviews all requests. Include your pass reference when you contact them.</p>${btn('Contact community', { go: 'help', sm: true, icon: 'mail' })}</div>
-    <div class="side-company"><div class="avatar navy">${initials(S.company.name)}</div><div><b>${esc(S.company.name)}</b>${esc(S.profile.name)} · ${esc(S.profile.title)}</div></div>
+    <div class="side-company">${logoTile(S.company.logo, S.company.name, 'sm')}<div><b>${esc(S.company.name)}</b>${esc(S.profile.name)} · ${esc(S.profile.title)}</div></div>
     <p class="preview-note">Design preview · sample data only</p>
   </div>`;
 }
@@ -582,6 +605,10 @@ function validate(step) {
     }
   }
   if (step === 'review' && !d.consent) e.consent = 'Confirm the information is correct.';
+  if (step === 'review') {
+    if (S.company.licenceExpiry && S.company.licenceExpiry < TODAY) e.licence = 'Your trade licence has expired. Upload the renewed licence in Settings › Company & billing.';
+    S.companyDocs.filter(c => c.required && c.file && !c.noExpiry && c.expiry && c.expiry < TODAY).forEach(c => { e['cd-' + c.id] = `Your ${c.name} has expired. Upload the renewed document in Settings › Company documents.`; });
+  }
   return e;
 }
 function errSummary(step) {
@@ -697,7 +724,7 @@ function docCard(k, required) {
     <p class="small muted" style="margin-top:-4px">${meta.hint}</p>
     <div id="f-doc-${k}" tabindex="-1">${uploader({ key: k, bind: `d.docs.${k}.file`, label: meta.name, file: doc.file })}</div>
     <div class="grid-2" style="align-items:end">
-      ${F({ id: `doc-${k}-exp`, label: 'Expiry date', bind: `d.docs.${k}.expiry`, type: 'date', disabled: doc.noExpiry, hint: doc.noExpiry ? 'Not needed. This document has no expiry date.' : 'Use the date printed on the document.' })}
+      ${F({ id: `doc-${k}-exp`, label: 'Expiry date', bind: `d.docs.${k}.expiry`, type: 'date', rerender: true, disabled: doc.noExpiry, hint: doc.noExpiry ? 'Not needed. This document has no expiry date.' : 'Use the date printed on the document.' })}
       ${meta.noExp ? `<div style="padding-bottom:22px">${sw(`doc-${k}-noexp`, `d.docs.${k}.noExpiry`, 'No expiry date', 'Only if the document does not expire.')}</div>` : '<p class="hint" style="padding-bottom:22px">This document must have an expiry date.</p>'}
     </div>
     ${err ? `<span class="err">${ic('alert')}${esc(err)}</span>` : ''}`, { action: meta.template ? btn('Template', { v: 'ghost', sm: true, icon: 'download', act: 'download', id: meta.name + ' template' }) : '' });
@@ -776,6 +803,9 @@ function expiryWarnings(d, scope) {
   if (!scope || scope === 'documents') Object.keys(d.docs).forEach(k => { const x = d.docs[k]; if (x && x.file && !x.noExpiry) check(x.expiry, `The ${DOCS[k].name}`, `data-act="focus" data-id="f-doc-${k}"`); });
   if (!scope || scope === 'company') { check(S.company.licenceExpiry, 'Your trade licence', 'data-go="settings"'); S.companyDocs.forEach(c => { if (c.file && !c.noExpiry) check(c.expiry, `Your ${c.name}`, 'data-go="settings-documents"'); }); }
   return out;
+}
+function expiryList(list) {
+  return `<ul class="warn-list">${list.map(w => `<li><b>${esc(w.what)}</b> expires in ${plural(w.n, 'day')} (${fmt(w.date)})${w.beforeEnd ? ', before the work ends' : ''}.</li>`).join('')}</ul>`;
 }
 function expiryAlert(list) {
   if (!list.length) return '';
@@ -1091,8 +1121,9 @@ function setGeneral() {
       <div class="field full" id="c-licence"><span class="label">Trade licence<span class="req">*</span></span>${uploader({ key: 'licence', bind: 'f.company.licence', label: 'trade licence', file: c.licence })}${fe('licence') ? `<span class="err">${ic('alert')}${fe('licence')}</span>` : ''}</div>
       ${F({ id: 'c-licexp', label: 'Trade licence expiry date', req: true, bind: 'f.company.licenceExpiry', type: 'date', err: fe('licenceExpiry'), hint: 'We remind you 30 days before it expires.' })}
     </div></div>
-    <div class="form-sec"><div><h3>Logo</h3><p>Appears on your passes and permits. Square PNG or JPG, at least 200 × 200 px.</p></div>
-      <div class="logo-up">${c.logo ? `<span class="logo-box">${initials(c.name)}</span>` : `<span class="logo-box" style="background:var(--surface-3);color:var(--text-3)">${ic('image')}</span>`}<div class="row"><label class="btn btn-secondary btn-sm" for="logo-up">${ic('upload')}${c.logo ? 'Replace logo' : 'Upload logo'}</label><input class="file-input" id="logo-up" type="file" accept=".png,.jpg,.jpeg" data-file="f.company.logo">${c.logo ? btn('Remove', { v: 'danger-ghost', sm: true, act: 'removeLogo' }) : ''}</div></div>
+    <div class="form-sec"><div><h3>Logo</h3><p>Appears on your passes and permits. PNG, JPG, SVG or WebP. Transparent PNGs work best, in any shape and colour.</p></div>
+      <div class="stack-sm" style="gap:12px"><div class="logo-up">${logoTile(c.logo, c.name, 'lg')}<div class="row"><label class="btn btn-secondary btn-sm" for="logo-up">${ic('upload')}${c.logo ? 'Replace logo' : 'Upload logo'}</label><input class="file-input" id="logo-up" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp,.png,.jpg,.jpeg,.svg,.webp" data-file="f.company.logo">${c.logo ? btn('Remove', { v: 'danger-ghost', sm: true, act: 'removeLogo' }) : ''}</div></div>
+      ${c.logo ? `<div class="field"><span class="label">Background behind the logo</span><div class="segmented" role="radiogroup" aria-label="Logo background">${[['auto', `Automatic (${c.logo.tone === 'light' ? 'dark' : 'light'})`], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<label><input type="radio" name="logo-bg" value="${v}" data-bind="f.company.logo.bg" data-rerender ${(c.logo.bg || 'auto') === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div><span class="hint">We pick dark for white logos and light for dark logos. Change it if your logo is hard to see.</span></div>` : ''}</div>
     </div>
   </section>
   <section class="card" data-dirty>
@@ -1378,13 +1409,19 @@ const ACT = {
   focus(t) { const el = document.getElementById(t.dataset.id) || document.getElementById(t.dataset.id + '-add'); if (el) { el.scrollIntoView({ block: 'center' }); el.focus({ preventScroll: true }); } },
   gotoStep(t) { wzGo(t.dataset.id); },
   wzBack() { const i = stepIndex(route()); if (i <= 0) go('type'); else wzGo(STEPS[i - 1][0]); },
-  wzNext() { const r = route(), i = stepIndex(r); if (Object.keys(validate(r)).length) { ui.errs[r] = true; render(); const s = document.getElementById('err-summary'); if (s) { s.scrollIntoView({ block: 'center' }); s.focus({ preventScroll: true }); } return; } S.draft.reached = Math.max(S.draft.reached, i + 1); persistDraft(); wzGo(STEPS[i + 1][0]); },
+  wzNext() { const r = route(), i = stepIndex(r); if (Object.keys(validate(r)).length) { ui.errs[r] = true; render(); const s = document.getElementById('err-summary'); if (s) { s.scrollIntoView({ block: 'center' }); s.focus({ preventScroll: true }); } return; } const next = () => { S.draft.reached = Math.max(S.draft.reached, i + 1); persistDraft(); wzGo(STEPS[i + 1][0]); };
+    const scope = { workvehicles: 'vehicles', personnel: 'workers', documents: 'documents' }[r];
+    const warn = scope ? expiryWarnings(S.draft, scope) : [];
+    if (!warn.length) { next(); return; }
+    openConfirm({ title: warn.length === 1 ? 'A document is close to expiry' : `${warn.length} documents are close to expiry`, message: 'You can still continue. The community may reject your permit if a document expires before or during the work. If you have an updated document, please upload it.', icon: 'alert', tone: 'warn', extra: () => expiryList(warn), confirmText: 'OK, continue', cancelText: 'Stay and update', onConfirm: next });
+  },
   saveExit() { persist(); toast('Draft saved. Continue it any time from the Overview.'); go('home'); },
   submitRequest() {
     const bad = STEPS.map(s => s[0]).find(s => Object.keys(validate(s)).length);
     if (bad) { ui.errs[bad] = true; if (bad === 'review') { render(); return; } toast(`Finish “${STEPS.find(s => s[0] === bad)[1]}” before submitting`, { err: true }); wzGo(bad); ui.errs[bad] = true; render(); return; }
     const d = S.draft;
-    openConfirm({ title: d.resubmit ? `Resubmit ${d.resubmit}?` : 'Submit this request?', message: `${d.title} will be sent to ${community().name} for review. You can't edit it while it's under review.`, confirmText: d.resubmit ? 'Resubmit request' : 'Submit request', icon: 'send', onConfirm: () => {
+    const warn = expiryWarnings(d);
+    openConfirm({ extra: warn.length ? () => `<div class="alert alert-warn">${ic('alert')}<div class="grow"><strong>Close to expiry. The community may reject your permit.</strong>${expiryList(warn)}</div></div>` : null, title: d.resubmit ? `Resubmit ${d.resubmit}?` : 'Submit this request?', message: `${d.title} will be sent to ${community().name} for review. You can't edit it while it's under review.`, confirmText: d.resubmit ? 'Resubmit request' : 'Submit request', icon: 'send', onConfirm: () => {
       let id;
       const rec = { community: d.community, kind: 'work', title: d.title, type: d.type, property: d.property, units: d.units, from: d.from, to: d.to, hours: `${d.start}–${d.end}`, status: 'review', updated: TODAY, workers: d.workers, vehicles: d.noVehicles ? [] : d.vehicles, materials: d.noMaterials ? 0 : d.materials.length, docs: Object.keys(d.docs).filter(k => d.docs[k].file).map(k => DOCS[k].name).concat(formsFor(d).map(f => f.published.name + ' (signed)')) };
       if (d.resubmit) { id = d.resubmit; Object.assign(S.permits.find(p => p.id === id), rec, { message: '' }); } else { id = 'BZ-' + S.nextRef++; S.permits.unshift(Object.assign({ id }, rec)); }
@@ -1516,7 +1553,7 @@ const ACT = {
     } });
     if (inModal) { ui.modal.onCancel = prev; }
   },
-  removeLogo() { openConfirm({ title: 'Remove your logo?', message: 'Passes will show your company initials instead. Save changes to apply.', confirmText: 'Remove logo', tone: 'danger', onConfirm: () => { ui.form.company.logo = false; ui.dirty = true; } }); },
+  removeLogo() { openConfirm({ title: 'Remove your logo?', message: 'Passes will show your company initials instead. Save changes to apply.', confirmText: 'Remove logo', tone: 'danger', onConfirm: () => { ui.form.company.logo = null; ui.dirty = true; } }); },
   discardForm() { openConfirm({ title: 'Discard unsaved changes?', message: 'Your edits on this page will be lost.', confirmText: 'Discard changes', tone: 'danger', onConfirm: () => { ui.form = initForm(ui.formTab); ui.dirty = false; ui.formErr = {}; } }); },
   saveForm() {
     const tab = ui.formTab, f = ui.form, e = {};
@@ -1632,7 +1669,7 @@ function onBound(el) {
 document.addEventListener('change', e => {
   const el = e.target;
   if (el.dataset.change && CHANGE[el.dataset.change]) { CHANGE[el.dataset.change](el); return; }
-  if (el.dataset.actChange === 'toggleSel') { const k = el.dataset.kind, arr = S.draft[k]; S.draft[k] = el.checked ? [...new Set([...arr, el.value])] : arr.filter(x => x !== el.value); persistDraft(); if (ui.errs.personnel || ui.errs.workvehicles) render(); return; }
+  if (el.dataset.actChange === 'toggleSel') { const k = el.dataset.kind, arr = S.draft[k]; S.draft[k] = el.checked ? [...new Set([...arr, el.value])] : arr.filter(x => x !== el.value); persistDraft(); render(); return; }
   if (el.dataset.ins !== undefined && el.type === 'checkbox') { ui.inspect[el.dataset.ins] = el.checked; return; }
   if (el.dataset.insFile !== undefined && el.files[0]) { ui.inspect.photos = el.files.length > 1 ? `${el.files.length} photos` : el.files[0].name; render(); return; }
   if (el.dataset.file) { handleFile(el.dataset.file, el.files[0]); el.value = ''; return; }
@@ -1725,7 +1762,12 @@ document.addEventListener('dragover', e => { if (e.target.closest('[data-sigdrop
 function handleFile(bind, file) {
   if (!file) return;
   if (file.size > 10 * 1048576) { toast(`${file.name} is larger than 10 MB. Choose a smaller file.`, { err: true }); return; }
-  if (bind === 'f.company.logo') { if (!/^image\//.test(file.type)) { toast('Choose a PNG or JPG image.', { err: true }); return; } ui.form.company.logo = true; ui.dirty = true; render(); toast('Logo ready. Save changes to apply.'); return; }
+  if (bind === 'f.company.logo') {
+    if (!/^image\/(png|jpe?g|svg\+xml|webp|gif)$/.test(file.type)) { toast('Choose a PNG, JPG, SVG or WebP image.', { err: true }); return; }
+    if (file.size > 5 * 1048576) { toast('This image is larger than 5 MB. Choose a smaller one.', { err: true }); return; }
+    prepareLogo(file).then(logo => { ui.form.company.logo = logo; ui.dirty = true; render(); toast(`Logo ready on a ${logo.tone === 'light' ? 'dark' : 'light'} background. Save changes to apply.`); }).catch(e => toast(e.message, { err: true }));
+    return;
+  }
   if (!/\.(pdf|jpe?g|png)$/i.test(file.name)) { toast('Use a PDF, JPG or PNG file.', { err: true }); return; }
   setB(bind, { name: file.name, size: file.size, date: TODAY });
   if (bind.startsWith('d.')) persistDraft(); else if (bind.startsWith('f.')) ui.dirty = true;

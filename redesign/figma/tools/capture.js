@@ -49,6 +49,7 @@ const STATES = [
   ['17 Add item', 'materials', 'dm', click('[data-act="addMaterial"]'), true],
   ['18 Remove item – confirm', 'materials', 'dm', click('[data-act="removeMaterial"] >> nth=0'), true],
   ['19 Step 3 Vehicles', 'workvehicles', 'dm'],
+  ['19b Vehicles – expiry popup', 'workvehicles', 'dm', seq(async pg => { await pg.check('input[value="v2"]'); await pg.waitForTimeout(100); }, click('[data-act="wzNext"]')), true],
   ['20 Step 4 Workers', 'personnel', 'dm'],
   ['20b Workers – expiry warning', 'personnel', 'dm', async pg => { await pg.check('input[value="p3"]'); await pg.evaluate(() => { location.hash = 'documents'; }); await pg.waitForTimeout(150); await pg.evaluate(() => { location.hash = 'personnel'; }); await pg.waitForTimeout(250); }],
   ['21 Step 5 Documents', 'documents', 'dm'],

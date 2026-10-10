@@ -659,3 +659,18 @@ details.faq p { padding-bottom: 14px; color: var(--text-2); }
 @media (max-width: 720px) { .pdf-doc { padding: 8px; gap: 8px; } .pdf-box { min-width: 11px; border-width: 1.5px; box-shadow: 0 0 0 2px rgba(255, 182, 36, .55); } }
 /* Bigger invisible tap area so small boxes stay easy to hit on phones. */
 .pdf-box::before { content: ''; position: absolute; inset: -12px; }
+.warn-list { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13.5px; color: var(--text-2); }
+.warn-list b { color: var(--text); font-weight: 600; }
+
+/* ---------- Company logo tile ---------- */
+:root { --logo-dark: #13203A; --logo-light: #FFFFFF; }
+.logo-tile { display: inline-grid; place-items: center; flex: none; overflow: hidden; border-radius: 10px; padding: 10px; }
+.logo-tile img { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: contain; }
+.logo-tile.lg { width: 176px; height: 84px; }
+.logo-tile.sm { width: 52px; height: 36px; padding: 4px; border-radius: 7px; }
+.logo-tile.on-light { background: var(--logo-light); box-shadow: inset 0 0 0 1px var(--border); }
+.logo-tile.on-dark { background: var(--logo-dark); box-shadow: inset 0 0 0 1px var(--side-line); }
+.logo-tile.initials { background: var(--side); color: var(--brand); font-weight: 800; box-shadow: inset 0 0 0 1px var(--side-line); }
+.logo-tile.lg.initials { font-size: 24px; }
+.logo-tile.sm.initials { font-size: 12px; }
+.side-company .logo-tile.on-dark { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18); }
