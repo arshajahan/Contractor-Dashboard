@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Buzzin Work Permit</title>
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="styles.css">
+<style>.boot{max-width:520px;margin:15vh auto;padding:24px;display:grid;gap:8px;font:15px/1.5 system-ui,sans-serif;color:#142033;background:#fff;border:1px solid #E1E6ED;border-radius:12px;text-align:center}.boot span{color:#4F5D72;font-size:14px}</style>
+</head>
+<body>
+<div id="app"><div class="boot"><b>Loading the Buzzin contractor portal…</b><span>If this message stays, open this file in Chrome, Edge or Safari. Some file previews block the scripts this design needs.</span></div></div>
+<noscript><div class="boot"><b>JavaScript is turned off.</b><span>Open this file in Chrome, Edge or Safari with JavaScript on.</span></div></noscript>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script src="../session.js"></script>
+<script>BuzzinSession.require("contractor")</script>
+<script src="vendor/pdf.min.js"></script>
+<script src="vendor/pdf.worker.min.js"></script>
+<script src="vendor/pdf-lib.min.js"></script>
+<script src="samples/sample-terms.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

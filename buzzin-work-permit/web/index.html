@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#13203A">
+<title>Buzzin Work Permit</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+:root{--navy:#13203A;--navy2:#1D2C49;--amber:#FFB624;--amber-h:#F4A511;--ink:#142033;--mute:#4F5D72;--faint:#7E899A;--line:#E1E6ED;--bg:#F3F5F8;--bad:#BB3030;--badbg:#FCEAEA;--ok:#12764D}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%}
+body{font:15px/1.5 Figtree,system-ui,sans-serif;color:var(--ink);background:var(--navy);-webkit-tap-highlight-color:transparent}
+.wrap{min-height:100vh;min-height:100dvh;display:grid;grid-template-rows:auto 1fr;max-width:480px;margin:0 auto;background:var(--bg)}
+.hero{background:linear-gradient(160deg,var(--navy),var(--navy2));color:#fff;padding:calc(36px + env(safe-area-inset-top,0px)) 24px 64px;display:grid;gap:14px;justify-items:start}
+.logo{display:flex;align-items:center;gap:12px}.logo svg{width:44px;height:44px}.logo b{font-size:24px;letter-spacing:-.3px}.logo small{display:block;font-size:11px;letter-spacing:.22em;color:#9fe3cf;font-weight:700}
+.hero h1{margin:6px 0 0;font-size:26px;line-height:1.2}.hero p{margin:0;color:#AFBBD0}
+.card{margin:-40px 16px 24px;background:#fff;border-radius:18px;padding:22px 20px;box-shadow:0 10px 30px #0b152a30;display:grid;gap:16px;align-self:start}
+label{display:grid;gap:6px;font-weight:600;font-size:13.5px}
+.in{height:46px;border:1px solid #C8D0DB;border-radius:10px;padding:0 14px;font:inherit;font-weight:500;width:100%;background:#fff;color:var(--ink)}
+.in:focus{outline:2px solid #2F7DF6;outline-offset:1px;border-color:transparent}
+.pw{position:relative}.pw button{position:absolute;right:4px;top:4px;height:38px;padding:0 12px;border:0;background:none;color:#1C5DAB;font:inherit;font-weight:600;font-size:13px}
+.btn{height:48px;border:0;border-radius:12px;background:var(--amber);color:#1C1404;font:inherit;font-weight:700;font-size:16px}.btn:active{background:var(--amber-h)}
+.err{display:none;padding:10px 12px;border-radius:10px;background:var(--badbg);color:var(--bad);font-weight:600;font-size:13.5px}.err.on{display:block}
+.link{border:0;background:none;color:#1C5DAB;font:inherit;font-weight:600;font-size:14px;padding:0;justify-self:start}
+.demo{margin:0 16px 28px;display:grid;gap:10px}.demo h2{margin:0;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.acc{display:flex;gap:12px;align-items:center;text-align:left;width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fff;font:inherit;color:inherit}
+.acc:active{background:#EDF1F5}.acc .av{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;background:#FFF4DA;color:#935700;flex:none}
+.acc.c .av{background:#E5F4EC;color:var(--ok)}.acc.a .av{background:#E3EEFB;color:#1C5DAB}
+.acc b{display:block;font-size:14px}.acc span{font-size:12.5px;color:var(--mute)}
+.note{font-size:12px;color:var(--faint);text-align:center;margin:0 24px 24px}
+dialog{border:0;border-radius:16px;padding:22px;max-width:340px;box-shadow:0 20px 50px #0007}dialog::backdrop{background:#0b152a99}dialog h3{margin:0 0 6px}dialog p{margin:0 0 16px;color:var(--mute)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="logo"><svg viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="36" r="30" fill="#0E7C66"/><path d="M21 43 36 20l15 23z" fill="#fff"/><rect x="29" y="39" width="14" height="11" fill="#fff"/></svg><div><b>Buzzin</b><small>WORK PERMIT</small></div></div>
+    <h1>Sign in</h1><p>Contractors and community teams use the same app. Your account decides what you see.</p>
+  </header>
+  <main>
+    <form class="card" id="f" novalidate>
+      <div class="err" id="err" role="alert"></div>
+      <label for="em">Email<input class="in" id="em" type="email" inputmode="email" autocomplete="username" autocapitalize="off" placeholder="you@company.com"></label>
+      <label for="pw">Password<span class="pw"><input class="in" id="pw" type="password" autocomplete="current-password" placeholder="Your password"><button type="button" id="show" aria-label="Show password">Show</button></span></label>
+      <button class="btn" type="submit">Sign in</button>
+      <button class="link" type="button" id="forgot">Forgot your password?</button>
+    </form>
+    <section class="demo" aria-label="Demo accounts"><h2>Demo accounts · tap to fill</h2><div id="list" style="display:grid;gap:8px"></div></section>
+    <p class="note">Design build with sample data. Nothing you do here is saved to a server.</p>
+  </main>
+</div>
+<dialog id="dlg"><h3>Reset your password</h3><p>In the live app you would get an email with a reset link. This build only uses demo accounts.</p><button class="btn" style="width:100%" onclick="dlg.close()">OK</button></dialog>
+<script src="session.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const s = BuzzinSession.get(); if (s) { const a = BUZZIN_ACCOUNTS.find(x => x.email === s.email); if (a) location.replace(a.home); }
+$('list').innerHTML = BUZZIN_ACCOUNTS.map((a, i) => `<button class="acc ${a.role === 'contractor' ? 'c' : a.role === 'admin' ? '' : 'a'}" data-i="${i}" type="button"><span class="av">${a.name.split(' ').map(w => w[0]).join('')}</span><span><b>${a.label} · ${a.name}</b><span>${a.sub}</span></span></button>`).join('');
+$('list').onclick = e => { const b = e.target.closest('.acc'); if (!b) return; const a = BUZZIN_ACCOUNTS[+b.dataset.i]; $('em').value = a.email; $('pw').value = a.password; $('err').classList.remove('on'); };
+$('show').onclick = () => { const p = $('pw'), on = p.type === 'password'; p.type = on ? 'text' : 'password'; $('show').textContent = on ? 'Hide' : 'Show'; };
+$('forgot').onclick = () => $('dlg').showModal();
+$('f').onsubmit = e => {
+  e.preventDefault(); const em = $('em').value.trim().toLowerCase(), pw = $('pw').value, err = $('err');
+  const say = m => { err.textContent = m; err.classList.add('on'); };
+  if (!em) return say('Enter your email.'); if (!/^\S+@\S+\.\S+$/.test(em)) return say('That email doesn’t look right.'); if (!pw) return say('Enter your password.');
+  const a = BUZZIN_ACCOUNTS.find(x => x.email === em && x.password === pw);
+  if (!a) return say('Email or password is wrong. Tap a demo account below to try the app.');
+  BuzzinSession.set(a); location.replace(a.home);
+};
+</script>
+</body>
+</html>

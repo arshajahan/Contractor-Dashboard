@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.Buzzin" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/navy</item>
+        <item name="android:navigationBarColor">@color/navy</item>
+        <item name="android:windowBackground">@color/navy</item>
+    </style>
+</resources>
