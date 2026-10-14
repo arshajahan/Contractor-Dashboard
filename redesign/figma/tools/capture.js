@@ -33,8 +33,8 @@ const completeDraft = async pg => {
 };
 const STATES = [
   ['00 Main dashboard – your communities', 'communities', 'dm'],
-  ['00b Main dashboard – no access to any community', 'communities', 'dm', async pg => { await pg.evaluate(() => { const k = 'buzzin-redesign-v3'; const s = JSON.parse(localStorage.getItem(k)); s.communities.forEach(c => { if (c.status === 'active') { c.status = 'left'; c.changedOn = '2026-10-09'; } }); localStorage.setItem(k, JSON.stringify(s)); location.reload(); }); await pg.waitForTimeout(600); }],
-  ['00c Community removed access', 'home', 'dm', async pg => { await pg.evaluate(() => { const k = 'buzzin-redesign-v3'; const s = JSON.parse(localStorage.getItem(k)); s.community = 'greens'; localStorage.setItem(k, JSON.stringify(s)); location.reload(); }); await pg.waitForTimeout(600); }],
+  ['00b Main dashboard – no access to any community', 'communities', 'dm', async pg => { await pg.evaluate(() => { const k = 'buzzin-redesign-v4'; const s = JSON.parse(localStorage.getItem(k)); s.communities.forEach(c => { if (c.status === 'active') { c.status = 'left'; c.changedOn = '2026-10-09'; } }); localStorage.setItem(k, JSON.stringify(s)); location.reload(); }); await pg.waitForTimeout(600); }],
+  ['00c Community removed access', 'home', 'dm', async pg => { await pg.evaluate(() => { const k = 'buzzin-redesign-v4'; const s = JSON.parse(localStorage.getItem(k)); s.community = 'greens'; localStorage.setItem(k, JSON.stringify(s)); location.reload(); }); await pg.waitForTimeout(600); }],
   ['01 Overview', 'home', 'dm'],
   ['02 Authorized passes', 'permits', 'dm'],
   ['03 Passes – row actions menu', 'permits', 'd', click('[data-act="rowMenu"] >> nth=1'), true],
@@ -95,7 +95,7 @@ const STATES = [
   ['52 Sign out – confirm', 'home', 'd', seq(click('[data-pop="user"]'), click('[data-act="signOut"]')), true],
   ['53 Mobile menu', 'home', 'm', click('[data-act="openDrawer"]'), true],
   ['54 Overview – dark mode', 'home', 'd', null, false, 'dark'],
-  ['60 Marina Gate – white logo on dark', 'home', 'd', async pg => { await pg.evaluate(() => { const k = 'buzzin-redesign-v3'; const s = JSON.parse(localStorage.getItem(k)); s.community = 'marina'; localStorage.setItem(k, JSON.stringify(s)); location.reload(); }); await pg.waitForTimeout(500); }],
+  ['60 Marina Gate – white logo on dark', 'home', 'd', async pg => { await pg.evaluate(() => { const k = 'buzzin-redesign-v4'; const s = JSON.parse(localStorage.getItem(k)); s.community = 'marina'; localStorage.setItem(k, JSON.stringify(s)); location.reload(); }); await pg.waitForTimeout(500); }],
 ];
 
 function extractor(overlay) {

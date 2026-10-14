@@ -736,3 +736,49 @@ button.select-row:disabled { cursor: not-allowed; }
 }
 /* Keep toasts clear of the sticky action bar and bottom navigation. */
 .toasts { bottom: 84px; }
+
+/* ---------- v4: fees, payment, invoice, approvals ---------- */
+.tl.warn .dot { background: var(--warn); color: #fff; box-shadow: none; }
+.tl.bad .dot { background: var(--bad); color: #fff; box-shadow: none; }
+.tl .grow b, .tl .grow span { overflow-wrap: anywhere; }
+.tl-note { display: block; margin-top: 4px; padding: 8px 10px; border-left: 3px solid var(--border-strong); background: var(--surface-2); border-radius: 0 var(--r) var(--r) 0; font-size: 13px; color: var(--text-2); quotes: none; overflow-wrap: anywhere; }
+.fee-box { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface-2); }
+.fee-box.free { background: var(--ok-soft); border-color: color-mix(in srgb, var(--ok) 25%, transparent); }
+.fee-box p { margin: 2px 0 0; }
+.fee-lines { display: grid; gap: 0; font-size: 13.5px; }
+.fee-lines > div { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.fee-lines > div span { min-width: 0; overflow-wrap: anywhere; }
+.fee-lines > div b { white-space: nowrap; }
+.fee-lines .total { border-bottom: 0; font-size: 15px; font-weight: 700; padding-top: 10px; }
+.fee-tag { color: var(--text-3); font-weight: 600; }
+.fee-tag.paid { color: var(--warn); }
+.trip-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface); }
+.trip-row .grow { display: grid; flex: 1; min-width: 120px; align-self: center; }
+.trip-in { width: 96px; }
+.trip-fee { align-self: center; min-width: 70px; text-align: right; }
+.rev-reason { display: flex !important; align-items: center; gap: 6px; color: var(--bad) !important; margin-top: 2px; }
+.rev-reason svg.i { width: 14px; height: 14px; flex: none; }
+.list-row .row .badge { white-space: normal; }
+.invoice { background: #fff; color: #142033; border: 1px solid #D5DBE5; border-radius: 8px; padding: 22px; display: grid; gap: 16px; font-size: 14px; }
+.invoice span { color: #4F5D72; }
+.invoice b, .invoice h3 { color: #142033; }
+.invoice .eyebrow { color: #6B778A; }
+.inv-top { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; border-bottom: 1px solid #E1E6ED; padding-bottom: 14px; }
+.inv-from { display: flex; gap: 12px; align-items: center; }
+.inv-from > div, .inv-no, .inv-bill, .inv-for { display: grid; gap: 2px; }
+.inv-no { text-align: right; }
+.inv-no h3 { font-size: 22px; letter-spacing: .04em; text-transform: uppercase; }
+.inv-table { width: 100%; border-collapse: collapse; }
+.inv-table th, .inv-table td { padding: 9px 6px; text-align: left; border-bottom: 1px solid #E1E6ED; }
+.inv-table th { font-size: 12px; color: #6B778A; background: #F4F6FA; }
+.inv-table .r { text-align: right; white-space: nowrap; }
+.inv-table tfoot td { font-weight: 700; border-bottom: 0; font-size: 15px; }
+.inv-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.inv-status { display: inline-block; padding: 3px 12px; border: 2px solid #0F8A5F; color: #0F8A5F !important; border-radius: 6px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+@media (max-width: 720px) { .inv-no { text-align: left; } .invoice { padding: 16px; } }
+@media print { .invoice { border: 0; } }
+
+/* Drawers scroll inside themselves, so footer buttons stay on screen. */
+.drawer-overlay { grid-template-rows: minmax(0, 1fr); }
+.drawer { max-height: 100%; min-height: 0; overflow: hidden; }
+.drawer .modal-body { min-height: 0; overflow-y: auto; }

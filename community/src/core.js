@@ -237,8 +237,8 @@ const alertBox = (tone, title, body = '', action = '', icon) => `<div class="ale
 const emptyState = (icon, title, body, action = '') => `<div class="empty"><span class="ic">${ic(icon)}</span><h3>${title}</h3><p class="small">${body}</p>${action}</div>`;
 const tabsBar = (id, tabs, current) => `<div class="tabs" role="tablist">${tabs.map(([k, l, n]) => `<button class="tab ${current === k ? 'active' : ''}" role="tab" aria-selected="${current === k}" data-act="tab" data-id="${id}:${k}">${l}${n != null ? `<span class="count">${n}</span>` : ''}</button>`).join('')}</div>`;
 const curTab = (id, def) => ui.tab[id] || def;
-function kpi({ label, value, sub, icon, tone = 'neutral', go, spark, subTone }) {
-  return `<button class="kpi" ${go ? `data-go="${go}"` : 'disabled'}><span class="top">${label}<span class="ic tone-${tone}">${ic(icon)}</span></span><span class="val-row"><span class="val num">${value}</span>${spark ? sparkline(spark) : ''}</span><span class="sub ${subTone || ''}">${sub || ''}</span></button>`;
+function kpi({ label, value, sub, icon, tone = 'neutral', go, act, spark, subTone }) {
+  return `<button class="kpi" ${act ? `data-act="${act}"` : go ? `data-go="${go}"` : 'disabled'}><span class="top">${label}<span class="ic tone-${tone}">${ic(icon)}</span></span><span class="val-row"><span class="val num">${value}</span>${spark ? sparkline(spark) : ''}</span><span class="sub ${subTone || ''}">${sub || ''}</span></button>`;
 }
 function qrSvg(seedStr) {
   let h = 0; for (const c of seedStr) h = (h * 31 + c.charCodeAt(0)) >>> 0;

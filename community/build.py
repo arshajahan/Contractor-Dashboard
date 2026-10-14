@@ -3,15 +3,13 @@
 import os, sys
 R = os.path.dirname(os.path.abspath(__file__))
 rd = lambda *p: open(os.path.join(R, *p), encoding='utf-8').read()
-LINKS = [('admin', 'Community Admin', 'buzzin-admin.html'), ('approver', 'Approver', 'buzzin-approver.html'), ('events', 'Events', 'buzzin-events.html')]
+LINKS = [('admin', 'Community Admin', 'buzzin-admin.html'), ('approver', 'Approver', 'buzzin-approver.html'), ('reviewer', 'Reviewer', 'buzzin-reviewer.html'), ('events', 'Events', 'buzzin-events.html')]
 PDF = ['vendor/pdf.min.js', 'vendor/pdf.worker.min.js', 'vendor/pdf-lib.min.js', 'samples/sample-terms.js']
+FULL = ['core.js', 'terms-data.js', 'pdf-view.js', 'terms-editor.js', 'wp-data.js', 'boot.js', 'wp-review.js', 'wp-review2.js', 'wp-pages.js', 'wp-pdf.js', 'wp-admin1.js', 'wp-admin2.js', 'wp-ws.js']
 BUILDS = {
-  'admin': dict(title='Buzzin · Community Admin', file='buzzin-admin.html', css=['base.css', 'community.css'], pdf=True,
-    js=['core.js', 'terms-data.js', 'pdf-view.js', 'terms-editor.js', 'wp-data.js', 'boot.js', 'wp-review.js', 'wp-review2.js', 'wp-pages.js', 'wp-admin1.js', 'wp-admin2.js', 'wp-ws.js'],
-    start="startApp(CFG_ADMIN, seedWP, validWP, WP_KEY);"),
-  'approver': dict(title='Buzzin · Approver', file='buzzin-approver.html', css=['base.css', 'community.css'], pdf=False,
-    js=['core.js', 'terms-data.js', 'wp-data.js', 'boot.js', 'wp-review.js', 'wp-review2.js', 'wp-pages.js', 'wp-ws.js'],
-    start="startApp(CFG_APPROVER, seedWP, validWP, WP_KEY);"),
+  'admin': dict(title='Buzzin · Community Admin', file='buzzin-admin.html', css=['base.css', 'community.css'], pdf=True, js=FULL, start="startApp(CFG_ADMIN, seedWP, validWP, WP_KEY);"),
+  'approver': dict(title='Buzzin · Approver', file='buzzin-approver.html', css=['base.css', 'community.css'], pdf=True, js=FULL, start="startApp(CFG_APPROVER, seedWP, validWP, WP_KEY);"),
+  'reviewer': dict(title='Buzzin · Reviewer', file='buzzin-reviewer.html', css=['base.css', 'community.css'], pdf=True, js=FULL, start="startApp(CFG_REVIEWER, seedWP, validWP, WP_KEY);"),
   'events': dict(title='Buzzin · Events', file='buzzin-events.html', css=['base.css', 'community.css'], pdf=False,
     js=['core.js', 'ev-data.js', 'boot.js', 'ev-pages.js', 'ev-ws.js'],
     start="startApp(CFG_EVENTS, seedEV, validEV, EV_KEY);"),

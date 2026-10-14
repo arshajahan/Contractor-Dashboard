@@ -6,8 +6,8 @@
 /* ================= Utilities ================= */
 // The PDF viewer runs on the page itself (vendor/pdf.worker.min.js is loaded as a script), so it also works from a local file.
 if (window.pdfjsLib) window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
-const TODAY = '2026-10-09';
-const KEY = 'buzzin-redesign-v3';
+const TODAY = '2026-10-12';
+const KEY = 'buzzin-redesign-v4';
 const ICONS = {
   home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   pass: '<circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
@@ -90,8 +90,8 @@ function expiry(date, noExp) {
 const badge = (label, tone = 'neutral') => `<span class="badge badge-${tone}"><i></i>${esc(label)}</span>`;
 const STATUS = {
   draft: ['Draft', 'neutral'], review: ['Under review', 'info'], changes: ['Changes requested', 'warn'],
-  approved: ['Approved', 'ok'], inspection: ['Inspection requested', 'info'], completed: ['Completed', 'neutral'],
-  expired: ['Expired', 'bad'], cancelled: ['Cancelled', 'neutral'],
+  payment: ['Payment pending', 'warn'], approved: ['Approved', 'ok'], inspection: ['Inspection requested', 'info'], completed: ['Completed', 'neutral'],
+  expired: ['Expired', 'bad'], revoked: ['Revoked', 'bad'], suspended: ['Suspended', 'bad'], cancelled: ['Cancelled', 'neutral'],
 };
 const statusBadge = s => badge(...(STATUS[s] || [s, 'neutral']));
 function btn(label, o = {}) {
@@ -101,18 +101,48 @@ function btn(label, o = {}) {
 }
 
 /* ================= Reference data ================= */
+// Fees, limits and closure rules. The community side uses the same values. maxDays 0 = no limit.
+const CURRENCY = 'AED';
 const PERMIT_TYPES = [
-  { id: 'general', name: 'General work permit', desc: 'Repairs, installations and general contractor work.', docs: ['scope'], optional: ['risk'] },
-  { id: 'fitout', name: 'Minor fit-out work', desc: 'Partitions, flooring, ceilings and joinery.', docs: ['scope', 'drawings', 'car'], optional: ['risk'] },
-  { id: 'maintenance', name: 'Maintenance work', desc: 'Planned or reactive maintenance, including AMC visits.', docs: ['scope'], optional: ['risk', 'amc'] },
-  { id: 'hot', name: 'Hot work', desc: 'Welding, cutting, grinding or any open flame.', docs: ['scope', 'risk', 'hotwork'], optional: [] },
+  { id: 'general', name: 'General work permit', desc: 'Repairs, installations and general contractor work.', docs: ['scope'], optional: ['risk'], paid: false, closure: false, maxEmployees: 10, maxDays: 30 },
+  { id: 'fitout', name: 'Minor fit-out work', desc: 'Partitions, flooring, ceilings and joinery.', docs: ['scope', 'drawings'], optional: ['risk'], paid: true, model: 'fixed', amount: 150, closure: true, maxEmployees: 8, maxDays: 60 },
+  { id: 'maintenance', name: 'Maintenance work', desc: 'Planned or reactive maintenance, including AMC visits.', docs: ['scope'], optional: ['risk', 'amc'], paid: false, closure: true, maxEmployees: 6, maxDays: 14, amcAllowed: true },
+  { id: 'hot', name: 'Hot work', desc: 'Welding, cutting, grinding or any open flame.', docs: ['scope', 'risk', 'hotwork'], optional: [], paid: true, model: 'fixed', amount: 250, closure: true, maxEmployees: 4, maxDays: 5 },
+  { id: 'delivery', name: 'Delivery & material movement', desc: 'Deliveries by truck or van. Priced per trip by vehicle weight.', docs: ['scope'], optional: [], paid: true, model: 'trip', tiers: [{ upTo: 1, price: 50 }, { upTo: 2, price: 100 }, { upTo: null, price: 200 }], closure: false, maxEmployees: 2, maxDays: 0 },
 ];
-const typeOf = id => PERMIT_TYPES.find(t => t.id === id) || { id, name: id === 'visitor' ? 'Visitor pass' : 'Work permit', docs: [], optional: [] };
+const typeOf = id => PERMIT_TYPES.find(t => t.id === id) || { id, name: id === 'visitor' ? 'Visitor pass' : 'Work permit', docs: [], optional: [], paid: false, closure: false, maxEmployees: 0, maxDays: 0 };
+const aed = n => CURRENCY + ' ' + Number(n || 0).toLocaleString('en-US');
+const tierPrice = (t, tons) => { const r = (t.tiers || []).find(x => x.upTo == null || Number(tons) <= x.upTo); return r ? r.price : 0; };
+const tierLabel = (t, i) => { const r = t.tiers[i], prev = i ? t.tiers[i - 1].upTo : 0; return r.upTo == null ? `Over ${prev} ${prev === 1 ? 'ton' : 'tons'}` : i ? `Over ${prev} up to ${r.upTo} ${r.upTo === 1 ? 'ton' : 'tons'}` : `Up to ${r.upTo} ${r.upTo === 1 ? 'ton' : 'tons'}`; };
+// Trips for one vehicle on a draft or permit. Older drafts kept one shared "trips" value.
+const tripsOf = (x, vid) => { const n = Math.floor(Number(x.tripsBy && x.tripsBy[vid])); if (n >= 1) return n; const o = Number(x.trips); return o >= 1 ? o : 1; };
+const amcOn = x => x.type === 'maintenance' && (x.amc === 'yes' || (x.amc && x.amc.freq));
+const FREQ = { daily: ['Daily', 'day'], weekly: ['Weekly', 'week'], monthly: ['Monthly', 'month'], annual: ['Annual', 'year'] };
+// Fee for a draft or a permit: { total, lines: [{ label, amount }] }
+function feeFor(x) {
+  const t = typeOf(x.type), lines = [];
+  if (!t.paid) return { total: 0, lines };
+  const workers = (x.workers || []).length;
+  if (t.model === 'fixed') lines.push({ label: t.name + ' fee', amount: t.amount });
+  else if (t.model === 'employee') lines.push({ label: `${workers} ${workers === 1 ? 'worker' : 'workers'} × ${aed(t.amount)}`, amount: t.amount * workers });
+  else if (t.model === 'trip') {
+    (x.noVehicles ? [] : (x.vehicles || [])).forEach(id => {
+      const v = S && vehicle(id); if (!v) return;
+      const n = tripsOf(x, id), price = tierPrice(t, v.tons);
+      lines.push({ label: `${v.plate} · ${v.tons || 0} t · ${plural(n, 'trip')} × ${aed(price)}`, amount: n * price });
+    });
+  }
+  return { total: lines.reduce((a, l) => a + l.amount, 0), lines };
+}
+const feeShort = t => !t.paid ? 'Free' : t.model === 'trip' ? `From ${aed(Math.min(...t.tiers.map(r => r.price)))} per trip` : t.model === 'employee' ? `${aed(t.amount)} per worker` : aed(t.amount);
+const limitsShort = t => `Up to ${plural(t.maxEmployees, 'worker')}${t.maxDays ? ` · ${plural(t.maxDays, 'day')} at most` : ''}`;
+const fmtDT = s => !s ? '—' : fmt(s.slice(0, 10)) + (s.length > 10 ? ', ' + s.slice(11, 16) : '');
+
+
 const DOCS = {
   scope: { name: 'Scope of Work Form', hint: 'Describe the tasks and exact work area. Use the community template.', template: true, noExp: true },
   risk: { name: 'Risk assessment', hint: 'Needed for work at height, noisy work, chemicals or electrical isolation.', template: true, noExp: true },
   drawings: { name: 'Approved layout drawings', hint: 'PDF of the approved layout with dimensions.', noExp: true },
-  car: { name: 'Contractor all-risk insurance', hint: 'Must be valid for every work date.', noExp: false },
   hotwork: { name: 'Hot work method statement', hint: 'Fire watch, extinguishers and isolation plan.', template: true, noExp: true },
   amc: { name: 'Annual maintenance contract', hint: 'Upload the signed AMC if this work is covered by one.', noExp: false },
 };
@@ -134,13 +164,13 @@ function blankDraft(prefill) {
   return Object.assign({
     id: uid('DRAFT-'), community: S ? S.community : 'buzzin', property: '', units: [], type: 'general', title: '', description: '',
     contact: '', phone: '', from: '', to: '', start: '09:00', end: '17:00', amc: 'no',
-    materials: [], noMaterials: false, vehicles: [], noVehicles: false, trips: '', workers: [],
+    materials: [], noMaterials: false, vehicles: [], noVehicles: false, tripsBy: {}, workers: [], amcFreq: '', amcVisits: '',
     docs: {}, ticks: {}, signer: { name: S ? S.profile.name : '', position: S ? S.profile.title : '', sig: null, auth: false }, consent: false, reached: 0, saved: TODAY,
   }, prefill || {});
 }
 function seed() {
   return {
-    v: 3, community: 'buzzin', nextRef: 1049, nextVp: 2211,
+    v: 4, community: 'buzzin', nextRef: 1052, nextVp: 2211, nextInv: 413, rules: { workersAfterApproval: true },
     communities: [
       { id: 'buzzin', name: 'Buzzin community', area: 'Dubai Silicon Oasis', status: 'active', since: '2025-02-11', email: 'permits@buzzin-community.example', logo: { data: 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22240%22%20height%3D%2272%22%20viewBox%3D%220%200%20240%2072%22%3E%3Ccircle%20cx%3D%2236%22%20cy%3D%2236%22%20r%3D%2226%22%20fill%3D%22%230E7C66%22/%3E%3Cpath%20d%3D%22M23%2042%2036%2022l13%2020z%22%20fill%3D%22%23fff%22/%3E%3Crect%20x%3D%2230%22%20y%3D%2238%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23fff%22/%3E%3Ctext%20x%3D%2274%22%20y%3D%2234%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-weight%3D%22700%22%20font-size%3D%2224%22%20fill%3D%22%230B3B32%22%3EBuzzin%3C/text%3E%3Ctext%20x%3D%2275%22%20y%3D%2255%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2213%22%20letter-spacing%3D%223%22%20fill%3D%22%230E7C66%22%3ECOMMUNITY%3C/text%3E%3C/svg%3E', tone: 'dark', bg: 'auto' } },
       { id: 'marina', name: 'Marina Gate', area: 'Dubai Marina', status: 'active', since: '2025-08-03', email: 'fm@marinagate.example', logo: { data: 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22240%22%20height%3D%2272%22%20viewBox%3D%220%200%20240%2072%22%3E%3Cpath%20d%3D%22M10%2044c10-10%2020-10%2030%200s20%2010%2030%200%22%20stroke%3D%22%23fff%22%20stroke-width%3D%225%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22/%3E%3Cpath%20d%3D%22M10%2030c10-10%2020-10%2030%200s20%2010%2030%200%22%20stroke%3D%22%23fff%22%20stroke-width%3D%225%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%20opacity%3D%22.6%22/%3E%3Ctext%20x%3D%2284%22%20y%3D%2233%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-weight%3D%22700%22%20font-size%3D%2222%22%20letter-spacing%3D%221%22%20fill%3D%22%23fff%22%3EMARINA%3C/text%3E%3Ctext%20x%3D%2285%22%20y%3D%2255%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2215%22%20letter-spacing%3D%225%22%20fill%3D%22%23fff%22%3EGATE%3C/text%3E%3C/svg%3E', tone: 'light', bg: 'auto' } },
@@ -150,12 +180,36 @@ function seed() {
     ],
     directory: ['Arabian Ranches Community', 'Business Bay Towers', 'City Walk Residences', 'Jumeirah Lake Towers', 'Motor City Villas', 'The Greens', 'Town Square'],
     permits: [
-      { id: 'BZ-1048', community: 'buzzin', kind: 'work', title: 'HVAC maintenance', type: 'maintenance', property: 'Buzzin offices', units: ['Unit 101'], from: '2026-10-12', to: '2026-10-16', hours: '09:00–17:00', status: 'review', updated: '2026-10-08', workers: ['p1', 'p3'], vehicles: ['v1'], materials: 2, docs: ['Scope of Work Form', 'Risk assessment'] },
-      { id: 'BZ-1042', community: 'buzzin', kind: 'work', title: 'Office fit-out', type: 'fitout', property: 'Buzzin offices', units: ['Unit 909'], from: '2026-10-14', to: '2026-10-28', hours: '08:00–18:00', status: 'changes', updated: '2026-10-07', workers: ['p2', 'p5'], vehicles: ['v2'], materials: 6, docs: ['Scope of Work Form', 'Approved layout drawings', 'Contractor all-risk insurance'], message: 'Please upload a revised Scope of Work Form that shows the exact work area. List any drilling or noisy work and the times it will happen.' },
-      { id: 'BZ-1036', community: 'buzzin', kind: 'work', title: 'Electrical inspection', type: 'general', property: 'Buzzin offices', units: ['Unit 123'], from: '2026-10-09', to: '2026-10-13', hours: '09:00–17:00', status: 'approved', updated: '2026-10-05', workers: ['p3'], vehicles: [], materials: 1, docs: ['Scope of Work Form'] },
+      { id: 'BZ-1051', community: 'buzzin', kind: 'work', title: 'Ceiling tile delivery', type: 'delivery', property: 'Buzzin offices', units: ['Unit 410'], from: '2026-10-20', to: '2026-10-20', hours: '09:00–12:00', status: 'review', updated: '2026-10-11', workers: ['p1'], vehicles: ['v3'], tripsBy: { v3: 2 }, materials: 1, docs: ['Scope of Work Form'],
+        approvals: [{ step: 'Security · Level 1', by: 'Omar Siddiqui', at: '2026-10-12T08:50', note: 'Vehicle and driver details are fine.', outcome: 'Approved' }] },
+      { id: 'BZ-1050', community: 'buzzin', kind: 'work', title: 'Reception refurbishment', type: 'fitout', property: 'Buzzin offices', units: ['Unit 909'], from: '2026-10-26', to: '2026-11-06', hours: '08:00–18:00', status: 'payment', updated: '2026-10-10', workers: ['p2', 'p5'], vehicles: ['v2'], tripsBy: { v2: 1 }, materials: 5, docs: ['Scope of Work Form', 'Approved layout drawings'],
+        approvals: [
+          { step: 'Security · Level 1', by: 'Omar Siddiqui', at: '2026-10-08T09:30', note: 'Documents match the permit type.', outcome: 'Approved' },
+          { step: 'Security · Level 2', by: 'Daniel Okoro', at: '2026-10-09T10:15', note: 'Drawings match the unit layout.', outcome: 'Approved' },
+          { step: 'Operations · Level 1', by: 'Priya Rao', at: '2026-10-10T15:40', note: 'Work times are fine. Payment is now due.', outcome: 'Approved' }] },
+      { id: 'BZ-1048', community: 'buzzin', kind: 'work', title: 'HVAC maintenance', type: 'maintenance', property: 'Buzzin offices', units: ['Unit 101'], from: '2026-10-19', to: '2026-10-23', hours: '09:00–17:00', status: 'review', updated: '2026-10-08', workers: ['p1', 'p3'], vehicles: ['v1'], tripsBy: { v1: 1 }, materials: 2, docs: ['Scope of Work Form', 'Risk assessment'],
+        approvals: [{ step: 'Security · Level 1', by: 'Omar Siddiqui', at: '2026-10-09T11:05', note: 'Worker IDs checked.', outcome: 'Approved' }] },
+      { id: 'BZ-1042', community: 'buzzin', kind: 'work', title: 'Office fit-out', type: 'fitout', property: 'Buzzin offices', units: ['Unit 909'], from: '2026-10-14', to: '2026-10-28', hours: '08:00–18:00', status: 'changes', updated: '2026-10-07', workers: ['p2', 'p5'], vehicles: ['v2'], tripsBy: { v2: 1 }, materials: 6, docs: ['Scope of Work Form', 'Approved layout drawings'], message: 'Please upload a revised Scope of Work Form that shows the exact work area. List any drilling or noisy work and the times it will happen.',
+        approvals: [
+          { step: 'Security · Level 1', by: 'Omar Siddiqui', at: '2026-10-06T09:30', note: 'Documents match the permit type.', outcome: 'Approved' },
+          { step: 'Security · Level 2', by: 'Daniel Okoro', at: '2026-10-07T13:20', note: 'Please upload a revised Scope of Work Form that shows the exact work area. List any drilling or noisy work and the times it will happen.', outcome: 'Changes requested' }] },
+      { id: 'BZ-1036', community: 'buzzin', kind: 'work', title: 'Electrical inspection', type: 'general', property: 'Buzzin offices', units: ['Unit 123'], from: '2026-10-09', to: '2026-10-13', hours: '09:00–17:00', status: 'approved', updated: '2026-10-05', workers: ['p3'], vehicles: [], materials: 1, docs: ['Scope of Work Form'],
+        extraWorkers: [{ id: 'p4', added: '2026-10-08', revoked: { at: '2026-10-09', reason: 'Emirates ID copy was unclear.' } }],
+        approvals: [
+          { step: 'Security · Level 1', by: 'Omar Siddiqui', at: '2026-10-05T09:30', note: 'Documents match the permit type.', outcome: 'Approved' },
+          { step: 'Operations · Level 1', by: 'Priya Rao', at: '2026-10-05T14:10', note: 'Work area and times are fine.', outcome: 'Approved' }] },
+      { id: 'BZ-1031', community: 'buzzin', kind: 'work', title: 'Crane lift', type: 'hot', property: 'Buzzin retail plaza', units: ['Common area – Roof'], from: '2026-10-05', to: '2026-10-08', hours: '08:00–16:00', status: 'revoked', updated: '2026-10-07', workers: ['p1', 'p3'], vehicles: ['v1'], tripsBy: { v1: 1 }, materials: 2, docs: ['Scope of Work Form', 'Risk assessment', 'Hot work method statement'], message: 'Unsafe lifting practice reported by security.',
+        approvals: [
+          { step: 'Security · Level 1', by: 'Omar Siddiqui', at: '2026-10-01T09:30', note: 'Documents match the permit type.', outcome: 'Approved' },
+          { step: 'Security · Level 2', by: 'Daniel Okoro', at: '2026-10-01T16:00', note: 'Method statement reviewed.', outcome: 'Approved' },
+          { step: 'Operations · Level 1', by: 'Priya Rao', at: '2026-10-02T10:45', note: 'Roof access booked.', outcome: 'Approved' }] },
       { id: 'VP-2210', community: 'buzzin', kind: 'visitor', title: 'Site survey visit', type: 'visitor', property: 'Buzzin residences', units: ['Unit 305'], from: '2026-10-15', to: '2026-10-15', hours: '10:00–12:00', status: 'approved', updated: '2026-10-06', workers: ['p2'], vehicles: [], materials: 0, docs: [] },
       { id: 'BZ-1029', community: 'buzzin', kind: 'work', title: 'Plumbing repair', type: 'maintenance', property: 'Buzzin residences', units: ['Unit 204'], from: '2026-09-21', to: '2026-09-23', hours: '09:00–15:00', status: 'completed', updated: '2026-09-24', workers: ['p1'], vehicles: ['v1'], materials: 3, docs: ['Scope of Work Form'] },
-      { id: 'BZ-1017', community: 'buzzin', kind: 'work', title: 'Glass partition installation', type: 'fitout', property: 'Buzzin offices', units: ['Unit 410'], from: '2026-08-10', to: '2026-08-20', hours: '08:00–18:00', status: 'expired', updated: '2026-08-21', workers: ['p2', 'p4'], vehicles: ['v3'], materials: 4, docs: ['Scope of Work Form'] },
+      { id: 'BZ-1017', community: 'buzzin', kind: 'work', title: 'Glass partition installation', type: 'fitout', property: 'Buzzin offices', units: ['Unit 410'], from: '2026-08-10', to: '2026-08-20', hours: '08:00–18:00', status: 'expired', updated: '2026-08-21', workers: ['p2', 'p4'], vehicles: ['v3'], tripsBy: { v3: 1 }, materials: 4, docs: ['Scope of Work Form', 'Approved layout drawings'],
+        approvals: [
+          { step: 'Security · Level 1', by: 'Omar Siddiqui', at: '2026-08-03T09:30', note: 'Documents match the permit type.', outcome: 'Approved' },
+          { step: 'Security · Level 2', by: 'Daniel Okoro', at: '2026-08-03T15:20', note: 'Layout drawings are clear.', outcome: 'Approved' },
+          { step: 'Operations · Level 1', by: 'Priya Rao', at: '2026-08-04T11:00', note: 'Approved. Payment is now due.', outcome: 'Approved' }] },
       { id: 'BZ-1011', community: 'buzzin', kind: 'work', title: 'Kitchen exhaust cleaning', type: 'maintenance', property: 'Buzzin retail plaza', units: ['Retail R-03'], from: '2026-08-02', to: '2026-08-02', hours: '22:00–02:00', status: 'cancelled', updated: '2026-07-30', workers: ['p1'], vehicles: [], materials: 0, docs: [] },
       { id: 'MG-0310', community: 'marina', kind: 'work', title: 'Balcony waterproofing', type: 'general', property: 'Tower A', units: ['Apt 2104'], from: '2026-10-11', to: '2026-10-18', hours: '09:00–17:00', status: 'approved', updated: '2026-10-03', workers: ['p2'], vehicles: ['v2'], materials: 3, docs: ['Scope of Work Form'] },
       { id: 'MG-0305', community: 'marina', kind: 'work', title: 'AC duct cleaning', type: 'maintenance', property: 'Tower B', units: ['Apt 1502'], from: '2026-10-20', to: '2026-10-21', hours: '09:00–13:00', status: 'review', updated: '2026-10-08', workers: ['p1'], vehicles: ['v1'], materials: 1, docs: ['Scope of Work Form'] },
@@ -169,17 +223,14 @@ function seed() {
       { id: 'p5', name: 'Hassan Ali', role: 'Painter', phone: '+971 50 000 0005', email: '', idType: 'Emirates ID', idNo: '784-1995-9988776-3', idExpiry: '2028-01-05', file: 'hassan-ali-eid.pdf' },
     ],
     vehicles: [
-      { id: 'v1', plate: 'Dubai N 12345', type: 'Van', make: 'Toyota Hiace', color: 'White', regExpiry: '2027-02-28', file: 'mulkiya-12345.pdf' },
-      { id: 'v2', plate: 'Sharjah 3 45821', type: 'Pickup', make: 'Nissan Navara', color: 'Silver', regExpiry: '2026-10-30', file: 'mulkiya-45821.pdf' },
-      { id: 'v3', plate: 'Ajman B 7710', type: 'Truck', make: 'Isuzu NPR', color: 'White', regExpiry: '2026-09-15', file: 'mulkiya-7710.pdf' },
+      { id: 'v1', plate: 'Dubai N 12345', type: 'Van', make: 'Toyota Hiace', color: 'White', tons: 1.5, regExpiry: '2027-02-28', file: 'mulkiya-12345.pdf' },
+      { id: 'v2', plate: 'Sharjah 3 45821', type: 'Pickup', make: 'Nissan Navara', color: 'Silver', tons: 1, regExpiry: '2026-10-30', file: 'mulkiya-45821.pdf' },
+      { id: 'v3', plate: 'Ajman B 7710', type: 'Truck', make: 'Isuzu NPR', color: 'White', tons: 7, regExpiry: '2027-04-10', file: 'mulkiya-7710.pdf' },
     ],
     company: { name: 'Sample Contracting', trn: '100000678922', licence: { name: 'trade-licence-2026.pdf', size: 412000 }, licenceExpiry: '2027-03-14', logo: null },
     billing: { legal: 'Sample Contracting FZCO', addr1: 'Dubai Silicon Oasis', addr2: 'Technohub 1', country: 'United Arab Emirates', state: 'Dubai', city: 'Dubai', postal: '00000' },
     profile: { name: 'Alex Morgan', email: 'alex@samplecontracting.ae', phone: '+971 50 000 0000', title: 'Operations manager', lang: 'English', tz: 'Asia/Dubai (GST, UTC+4)', datefmt: 'DD MMM YYYY' },
     companyDocs: [
-      { id: 'cd1', name: 'Public liability insurance', expiry: '2026-10-28', file: 'pli-certificate-2026.pdf', required: true },
-      { id: 'cd2', name: "Workmen's compensation insurance", expiry: '2027-01-31', file: 'wc-policy-2026.pdf', required: true },
-      { id: 'cd5', name: 'Contractor all-risk insurance', expiry: '2027-02-15', file: 'car-policy-2026.pdf' },
       { id: 'cd3', name: 'VAT registration certificate', noExpiry: true, file: 'vat-certificate.pdf' },
       { id: 'cd4', name: 'Company profile', noExpiry: true, file: null },
     ],
@@ -193,19 +244,24 @@ function seed() {
         published: { version: 3, name: 'Contractor terms & community guidelines', fileName: 'buzzin-contractor-terms-v3.pdf', pdf: 'sample', fields: clone(SAMPLE_FIELDS), appliesTo: [...ALL_TYPES], placement: 'bottom', at: '2026-09-01' } },
     ],
     notifications: [
+      { id: 'n0', title: 'Marina Gate gave you access', body: 'You were invited by email and your existing account now has access.', when: '3 days ago', go: 'communities', unread: true },
+      { id: 'n5', title: 'Payment due for BZ-1050', body: 'Reception refurbishment is approved. Pay AED 150 online to get your QR codes.', when: 'Yesterday', go: 'permit-BZ-1050', unread: true },
       { id: 'n1', title: 'Changes requested on BZ-1042', body: 'Office fit-out needs a revised Scope of Work Form.', when: '2 h ago', go: 'permit-BZ-1042', unread: true },
       { id: 'n2', title: 'BZ-1036 approved', body: 'Your electrical inspection permit and QR codes are ready.', when: 'Yesterday', go: 'permit-BZ-1036', unread: true },
       { id: 'n3', title: 'Emirates ID expiring soon', body: "Omar Haddad's ID expires on 24 Oct 2026.", when: '2 days ago', go: 'people', unread: false },
-      { id: 'n4', title: 'Insurance expiring soon', body: 'Public liability insurance expires on 28 Oct 2026.', when: '3 days ago', go: 'settings-documents', unread: false },
     ],
     draft: blankDraft({
       id: 'DRAFT-07', community: 'buzzin', property: 'Buzzin residences', units: ['Unit 101'], type: 'general', title: 'Painting work',
       description: 'Repaint living room and bedroom walls. No drilling or noisy work.', contact: 'Priya Nair', phone: '+971 50 000 0002',
       from: '2026-10-14', to: '2026-10-16',
       materials: [{ id: 'm1', name: 'Emulsion paint', kind: 'Material', qty: 6, unit: 'buckets', removed: 'Yes', notes: '' }, { id: 'm2', name: 'Step ladder', kind: 'Equipment', qty: 1, unit: 'pcs', removed: 'Yes', notes: '' }],
-      vehicles: ['v1'], trips: '2', workers: ['p2', 'p5'], reached: 3, saved: TODAY,
+      vehicles: ['v1'], tripsBy: { v1: 2 }, workers: ['p2', 'p5'], reached: 3, saved: TODAY,
       signer: { name: 'Alex Morgan', position: 'Operations manager', sig: null, auth: false },
     }),
+    invoices: [
+      { id: 'INV-2026-0412', permitId: 'BZ-1017', community: 'buzzin', amount: 150, lines: [{ label: 'Minor fit-out work fee', amount: 150 }], method: 'Online', paidAt: '2026-08-05T11:20', status: 'Paid' },
+      { id: 'INV-2026-0398', permitId: 'BZ-1031', community: 'buzzin', amount: 250, lines: [{ label: 'Hot work fee', amount: 250 }], method: 'Online', paidAt: '2026-10-02T14:05', status: 'Paid' },
+    ],
     visitor: { name: '', company: 'Sample Contracting', phone: '', idType: 'Emirates ID', idNo: '', purpose: 'Site survey', unit: '', date: '', from: '10:00', to: '12:00', plate: '', notes: '' },
   };
 }
@@ -214,7 +270,7 @@ function seed() {
 let S = null;
 try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
 // Saved preview data must have the current shape. Anything else (older versions, partial or broken data) starts fresh.
-const validState = x => !!(x && x.v === 3 && ['communities', 'permits', 'people', 'vehicles', 'companyDocs', 'forms', 'notifications', 'directory'].every(k => Array.isArray(x[k])) && x.communities.length && x.company && x.profile && x.billing && x.notifPrefs && x.visitor);
+const validState = x => !!(x && x.v === 4 && ['communities', 'permits', 'people', 'vehicles', 'companyDocs', 'forms', 'notifications', 'directory', 'invoices'].every(k => Array.isArray(x[k])) && x.rules && x.communities.length && x.company && x.profile && x.billing && x.notifPrefs && x.visitor);
 if (!validState(S)) { S = null; S = seed(); } // seed() must not read the broken data
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { if (e && e.name === 'QuotaExceededError') toast('This browser is out of space for the preview. Use a smaller PDF.', { err: true }); return false; } };
 if (S.draft && S.draft.docs) Object.values(S.draft.docs).forEach(x => { if (x && x.file && x.file.status === 'checking') { x.file.status = 'done'; delete x.file.step; } });
@@ -282,7 +338,7 @@ function F(o) {
 }
 const check = (id, bind, label, sub = '', rerender = false) => `<label class="check" for="${id}"><input type="checkbox" id="${id}" data-bind="${bind}" ${rerender ? 'data-rerender' : ''} ${getB(bind) ? 'checked' : ''}><span>${label}${sub ? `<small>${sub}</small>` : ''}</span></label>`;
 const sw = (id, bind, label, sub = '', rerender = true, act = '') => `<label class="switch" for="${id}"><input type="checkbox" id="${id}" ${bind ? `data-bind="${bind}"` : ''} ${act ? `data-change="${act}"` : ''} ${rerender ? 'data-rerender' : ''} ${(bind ? getB(bind) : false) ? 'checked' : ''}><span class="track"></span><span class="txt"><b>${label}</b>${sub ? `<small>${sub}</small>` : ''}</span></label>`;
-const seg = (name, bind, opts) => `<div class="segmented" role="radiogroup">${opts.map(([v, l]) => `<label><input type="radio" name="${name}" value="${v}" data-bind="${bind}" ${getB(bind) === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>`;
+const seg = (name, bind, opts, rerender = false) => `<div class="segmented" role="radiogroup">${opts.map(([v, l]) => `<label><input type="radio" name="${name}" value="${v}" data-bind="${bind}" ${rerender ? 'data-rerender' : ''} ${getB(bind) === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>`;
 
 /* Searchable dropdown (combobox). Single value or multi (array). */
 function combo(o) {
@@ -352,7 +408,7 @@ function navKey(r) {
 }
 function sidebar(r) {
   const nk = navKey(r);
-  const action = passesHere().filter(p => p.status === 'changes').length;
+  const action = passesHere().filter(p => ['changes', 'payment'].includes(p.status)).length;
   return `${communityCard()}
   <nav class="side-nav" aria-label="Main">${NAV.map(([g, items]) => `<div class="side-label">${g}</div>${items.map(([k, l, i]) => `<button class="nav-item ${nk === k ? 'active' : ''}" data-go="${k}" ${nk === k ? 'aria-current="page"' : ''}>${ic(i)}<span>${l}</span>${k === 'permits' && action ? `<span class="count" title="${action} need your action">${action}</span>` : ''}</button>`).join('')}`).join('')}</nav>
   <div class="side-foot">
@@ -424,16 +480,18 @@ function pHome() {
   const n = s => P.filter(p => p.status === s).length;
   const exp = expiringItems();
   const changes = P.filter(p => p.status === 'changes');
+  const toPay = P.filter(p => p.status === 'payment');
   const upcoming = P.filter(p => p.status === 'approved' && p.to >= TODAY).sort((a, b) => a.from.localeCompare(b.from));
   const recent = P.filter(p => !p.draft).sort((a, b) => b.updated.localeCompare(a.updated)).slice(0, 5);
   const kpi = (label, val, icon, tone, sub, go) => `<button class="kpi" data-act="kpi" data-id="${go}"><span class="top">${label}<span class="ic tone-${tone}">${ic(icon)}</span></span><span class="val">${val}</span><span class="sub">${sub}</span></button>`;
   const hour = 9;
   return `${pageHead(`Good ${hour < 12 ? 'morning' : 'afternoon'}, ${esc(S.profile.name.split(' ')[0])}`, `Here's what's happening at ${esc(community().name)} today, ${fmt(TODAY)}.`, btn('Request pass', { v: 'primary', icon: 'plus', go: 'type', cls: 'btn-hide-sm' }))}
+  ${toPay.map(p => alertBox('warn', `${esc(p.title)}: payment pending`, `${esc(community().name)} approved ${p.id}. Pay ${aed(feeFor(p).total)} online to get your QR codes.`, btn('Pay now', { sm: true, v: 'primary', act: 'payNow', id: p.id }))).join('')}
   ${changes.map(p => alertBox('warn', `${esc(p.title)} needs changes`, `${esc(community().name)} asked for an update on ${p.id}. Your work can't start until you resubmit.`, btn('Review changes', { sm: true, go: 'permit-' + p.id }))).join('')}
   <div class="kpis">
     ${kpi('Active passes', n('approved'), 'pass', 'ok', `${upcoming.length} with upcoming work`, 'approved')}
     ${kpi('Under review', n('review') + n('inspection'), 'clock', 'info', 'Waiting for the community', 'review')}
-    ${kpi('Needs your action', n('changes') + n('draft'), 'alert', 'warn', `${plural(n('changes'), 'change request')} · ${plural(n('draft'), 'draft')}`, 'action')}
+    ${kpi('Needs your action', n('changes') + n('draft') + n('payment'), 'alert', 'warn', `${plural(n('changes'), 'change request')} · ${plural(n('payment'), 'payment')} · ${plural(n('draft'), 'draft')}`, 'action')}
     ${kpi('Expiring documents', exp.length, 'file', exp.some(e => e.tone === 'bad') ? 'bad' : 'warn', 'IDs, vehicles and company files', 'expiring')}
   </div>
   <div class="layout-main">
@@ -467,16 +525,19 @@ function rowMenuItems(p) {
   if (p.draft) { out.push(it('edit', 'Resume draft', 'data-act="resumeDraft"')); out.push('<div class="pop-sep"></div>'); out.push(it('trash', 'Delete draft', 'data-act="discardDraft"', true)); return out.join(''); }
   out.push(it('eye', 'View details', `data-go="permit-${p.id}"`));
   if (p.status === 'changes') out.push(it('edit', 'Update and resubmit', `data-act="updatePermit" data-id="${p.id}"`));
-  if (p.status === 'approved') { out.push(it('download', 'Download permit', `data-act="download" data-id="${p.id}"`)); if (p.kind === 'work') out.push(it('clipboard', 'Request final inspection', `data-go="completion-${p.id}"`)); }
+  if (p.status === 'payment') out.push(it('receipt', 'Pay now', `data-act="payNow" data-id="${p.id}"`));
+  if (p.status === 'approved') out.push(it('download', 'Download permit', `data-act="download" data-id="${p.id}"`));
+  if (canComplete(p)) out.push(it('clipboard', 'Mark as completed', `data-act="markComplete" data-id="${p.id}"`));
   if (p.kind === 'work') out.push(it('copy', 'Duplicate as new request', `data-act="duplicate" data-id="${p.id}"`));
   out.push(it('mail', 'Contact community', 'data-go="help"'));
-  if (['review', 'changes', 'approved'].includes(p.status)) { out.push('<div class="pop-sep"></div>'); out.push(it('x', p.status === 'approved' ? 'Cancel pass' : 'Withdraw request', `data-act="cancelPermit" data-id="${p.id}"`, true)); }
+  if (['review', 'changes', 'payment', 'approved'].includes(p.status)) { out.push('<div class="pop-sep"></div>'); out.push(it('x', p.status === 'approved' ? 'Cancel pass' : 'Withdraw request', `data-act="cancelPermit" data-id="${p.id}"`, true)); }
   return out.join('');
 }
+const canComplete = p => p.kind === 'work' && !p.draft && ['approved', 'expired', 'revoked', 'suspended'].includes(p.status);
 function pPermits() {
   const P = passesHere();
-  const tabs = [['all', 'All'], ['action', 'Needs action'], ['review', 'Under review'], ['approved', 'Approved'], ['past', 'Past']];
-  const inTab = (p, t) => t === 'all' || (t === 'action' ? ['changes', 'draft'].includes(p.status) : t === 'review' ? ['review', 'inspection'].includes(p.status) : t === 'past' ? ['completed', 'expired', 'cancelled'].includes(p.status) : p.status === t);
+  const tabs = [['all', 'All'], ['action', 'Needs action'], ['review', 'Under review'], ['approved', 'Approved'], ['stopped', 'Revoked & suspended'], ['past', 'Past']];
+  const inTab = (p, t) => t === 'all' || (t === 'action' ? ['changes', 'draft', 'payment'].includes(p.status) : t === 'review' ? ['review', 'inspection'].includes(p.status) : t === 'stopped' ? ['revoked', 'suspended'].includes(p.status) : t === 'past' ? ['completed', 'expired', 'cancelled'].includes(p.status) : p.status === t);
   const q = (ui.search.permits || '').toLowerCase();
   const f = ui.filters;
   let list = P.filter(p => inTab(p, ui.tab))
@@ -515,21 +576,59 @@ function qrSvg(seedStr) {
   }
   return `<svg viewBox="0 0 21 21" shape-rendering="crispEdges" role="img" aria-label="Sample QR placeholder"><rect width="21" height="21" fill="#fff"/>${cells}${finder(0, 0)}${finder(14, 0)}${finder(0, 14)}</svg>`;
 }
+const invoiceOf = p => S.invoices.find(i => i.permitId === p.id);
+const communityOf = id => S.communities.find(c => c.id === id) || community();
+// Approval timeline: every step the community took, then what is still to come.
+function approvalTimeline(p) {
+  const fee = feeFor(p), inv = invoiceOf(p);
+  const issued = ['approved', 'inspection', 'completed', 'expired', 'revoked', 'suspended'].includes(p.status) || (p.status === 'cancelled' && inv);
+  const items = [{ t: 'done', title: 'Request submitted', sub: 'Sent to ' + communityOf(p.community).name }];
+  (p.approvals || []).forEach(a => {
+    const chg = a.outcome === 'Changes requested';
+    items.push({ t: chg ? 'warn' : 'done', title: esc(a.step), sub: `${esc(a.outcome || 'Approved')} by ${esc(a.by)} · ${fmtDT(a.at)}`, note: a.note });
+  });
+  if (p.status === 'changes' && !(p.approvals || []).some(a => a.outcome === 'Changes requested')) items.push({ t: 'warn', title: 'Changes requested', sub: 'The community asked for an update', note: p.message });
+  if (p.status === 'review') items.push({ t: 'now', title: 'Community review', sub: 'In progress. More approvals may follow.' });
+  if (p.status === 'changes') items.push({ t: 'now', title: 'Waiting for you', sub: 'Update and resubmit the request.' });
+  if (fee.total > 0) {
+    if (inv) items.push({ t: 'done', title: 'Payment received', sub: `${aed(inv.amount)} · ${esc(inv.method)} · ${fmtDT(inv.paidAt)} · ${esc(inv.id)}` });
+    else if (p.status === 'payment') items.push({ t: 'now', title: 'Payment pending', sub: `Pay ${aed(fee.total)} online to get your QR codes.` });
+    else if (['review', 'changes'].includes(p.status)) items.push({ t: '', title: 'Payment', sub: `${aed(fee.total)} due after the community approves` });
+  }
+  if (issued) items.push({ t: 'done', title: 'Pass issued', sub: 'Permit and QR codes issued' });
+  else if (!['cancelled'].includes(p.status)) items.push({ t: '', title: 'Pass issued', sub: 'After approval' + (fee.total > 0 ? ' and payment' : '') });
+  if (p.status === 'revoked' || p.status === 'suspended') items.push({ t: 'bad', title: p.status === 'revoked' ? 'Revoked by the community' : 'Suspended by the community', sub: p.revokedAt ? fmt(p.revokedAt) : fmt(p.updated), note: p.message });
+  if (p.status === 'completed') items.push({ t: 'done', title: 'Work completed', sub: fmt(p.updated) });
+  if (p.status === 'inspection') items.push({ t: 'now', title: 'Final inspection requested', sub: 'The community will confirm a time.' });
+  if (p.status === 'expired') items.push({ t: 'bad', title: 'Pass expired', sub: 'The work dates have passed.' });
+  if (p.status === 'cancelled') items.push({ t: 'bad', title: 'Cancelled', sub: fmt(p.updated) });
+  return `<div class="timeline">${items.map(i => `<div class="tl ${i.t}"><span class="dot">${i.t === 'done' ? ic('check') : i.t === 'bad' ? ic('x') : i.t === 'warn' ? ic('alert') : ''}</span><div class="grow"><b>${i.title}</b><span>${i.sub}</span>${i.note ? `<q class="tl-note">${esc(i.note)}</q>` : ''}</div></div>`).join('')}</div>`;
+}
+function feeLines(f) { return `<div class="fee-lines">${f.lines.map(l => `<div><span>${esc(l.label)}</span><b>${aed(l.amount)}</b></div>`).join('')}<div class="total"><span>Total</span><b>${aed(f.total)}</b></div></div>`; }
 function pPermit(id) {
   const p = S.permits.find(x => x.id === id);
   if (!p) return pageHead('Pass not found', 'It may have been removed.', btn('Back to passes', { go: 'permits' }));
-  const t = typeOf(p.type);
-  const steps = [['Request submitted', 'Sent to ' + community().name, true], ['Community review', p.status === 'changes' ? 'Changes requested' : p.status === 'review' ? 'In progress' : 'Reviewed', !['review', 'changes'].includes(p.status)], ['Pass approved', 'Permit and QR codes issued', ['approved', 'inspection', 'completed', 'expired'].includes(p.status)], ['Work completed', 'Final inspection', p.status === 'completed']];
-  const nowIdx = steps.findIndex(s => !s[2]);
+  const t = typeOf(p.type), fee = feeFor(p), inv = invoiceOf(p);
   const actions = [];
-  if (p.status === 'approved') { actions.push(btn('Download permit', { v: 'primary', icon: 'download', act: 'download', id: p.id })); if (p.kind === 'work') actions.push(btn('Request final inspection', { icon: 'clipboard', go: 'completion-' + p.id })); }
+  if (p.status === 'payment') actions.push(btn('Pay now', { v: 'primary', icon: 'receipt', act: 'payNow', id: p.id }));
+  if (p.status === 'approved') actions.push(btn('Download permit', { v: p.kind === 'work' ? 'secondary' : 'primary', icon: 'download', act: 'download', id: p.id }));
+  if (canComplete(p)) actions.push(btn('Mark as completed', { v: 'secondary', icon: 'clipboard', act: 'markComplete', id: p.id }));
   if (p.status === 'changes') actions.push(btn('Update and resubmit', { v: 'primary', icon: 'edit', act: 'updatePermit', id: p.id }));
   actions.push(`<div class="pop-anchor">${btn('', { icon: 'more', act: 'rowMenu', id: p.id, title: 'More actions' })}</div>`);
   const workers = (p.workers || []).map(person).filter(Boolean);
+  const extras = (p.extraWorkers || []).map(x => ({ x, p: person(x.id) })).filter(e => e.p);
   const vehicles = (p.vehicles || []).map(vehicle).filter(Boolean);
+  const live = p.status === 'approved' && p.kind === 'work';
+  const room = t.maxEmployees ? t.maxEmployees - workers.length - extras.filter(e => !e.x.revoked).length : 99;
+  const workerRow = (w, ex) => `<div class="list-row"><span class="avatar">${initials(w.name)}</span><span class="grow"><b>${esc(w.name)}</b><span>${esc(w.role)} · ${esc(w.idType)}${ex ? ` · Added ${fmt(ex.added)}` : ''}</span>${ex && ex.revoked ? `<span class="rev-reason">${ic('alert')}Reason: ${esc(ex.revoked.reason || 'No reason given')}${ex.revoked.at ? ' · ' + fmt(ex.revoked.at) : ''}</span>` : ''}</span><span class="row" style="gap:6px;justify-content:flex-end">${ex ? (ex.revoked ? badge('Revoked by the community', 'bad') : badge('Added after approval', 'info')) : ''}${ex && ex.revoked ? '' : badge(expiry(w.idExpiry).label, expiry(w.idExpiry).tone)}</span></div>`;
+  const addBtn = live ? (S.rules.workersAfterApproval ? `<div class="list-row" style="justify-content:space-between"><span class="small muted">${room > 0 ? `You can add up to ${plural(room, 'more worker')}.` : `This permit type allows ${t.maxEmployees} workers. The limit is reached.`}</span>${btn('Add worker', { sm: true, icon: 'plus', act: 'addWorker', id: p.id, disabled: room <= 0 })}</div>` : `<p class="xs faint" style="padding:8px 12px 12px">${esc(communityOf(p.community).name)} does not allow adding workers after approval.</p>`) : '';
+  const payCard = inv ? card('Payment', `<dl class="dl"><dt>Amount</dt><dd>${aed(inv.amount)}</dd><dt>Method</dt><dd>${esc(inv.method)}</dd><dt>Paid on</dt><dd>${fmtDT(inv.paidAt)}</dd><dt>Invoice</dt><dd><span class="mono">${esc(inv.id)}</span> ${badge(inv.status, 'ok')}</dd></dl>`, { foot: btn('View invoice', { sm: true, icon: 'eye', act: 'viewInvoice', id: inv.id }) + btn('Download invoice PDF', { sm: true, icon: 'download', act: 'downloadInvoice', id: inv.id }) })
+    : fee.total > 0 && ['payment', 'review', 'changes'].includes(p.status) ? card(p.status === 'payment' ? 'Payment due' : 'Fee', feeLines(fee) + (p.status === 'payment' ? '' : `<p class="xs faint">Payment is due after the community approves. You get your QR codes once payment is made.</p>`), p.status === 'payment' ? { foot: btn('Pay now', { v: 'primary', icon: 'receipt', act: 'payNow', id: p.id }) } : {}) : '';
   return `${pageHead(`${esc(p.title)} ${statusBadge(p.status)}`, `<span class="mono">${p.id}</span> · ${esc(t.name)} · Last updated ${fmt(p.updated)}`, actions.join(''), [['Authorized passes', 'permits'], [p.id]])}
-  ${p.status === 'changes' ? alertBox('warn', 'Changes requested by ' + esc(community().name), esc(p.message), btn('Update and resubmit', { sm: true, act: 'updatePermit', id: p.id })) : ''}
+  ${p.status === 'changes' ? alertBox('warn', 'Changes requested by ' + esc(communityOf(p.community).name), esc(p.message), btn('Update and resubmit', { sm: true, act: 'updatePermit', id: p.id })) : ''}
+  ${p.status === 'payment' ? alertBox('warn', `Payment pending: ${aed(fee.total)}`, 'The community approved your request. Pay online to get your QR codes. Work can start only after payment.', btn('Pay now', { sm: true, v: 'primary', act: 'payNow', id: p.id })) : ''}
   ${p.status === 'approved' ? alertBox('ok', 'Approved. Your pass is ready.', 'Show the QR code at the gate. Follow the work dates, hours and conditions on the permit.') : ''}
+  ${p.status === 'revoked' || p.status === 'suspended' ? alertBox('bad', `${p.status === 'revoked' ? 'Revoked' : 'Suspended'} by ${esc(communityOf(p.community).name)}`, esc(p.message || 'No reason was given.') + ' QR codes no longer work at the gate. Contact the community to ask what happens next.', btn('Contact community', { sm: true, go: 'help' })) : ''}
   ${p.status === 'review' ? alertBox('info', 'Waiting for community review', 'You will get an email and a notification when the community responds. Work can start only after approval.') : ''}
   <div class="layout-main">
     <div class="stack">
@@ -539,14 +638,17 @@ function pPermit(id) {
         <dt>Work dates</dt><dd>${range(p.from, p.to)}</dd>
         <dt>Daily hours</dt><dd>${esc(p.hours || '—')}</dd>
         <dt>Materials</dt><dd>${p.materials ? plural(p.materials, 'item') : 'None'}</dd>
+        ${p.amc && p.amc.freq ? `<dt>Maintenance contract</dt><dd>${esc(FREQ[p.amc.freq][0])} · ${plural(Number(p.amc.visits), 'visit')} each ${FREQ[p.amc.freq][1]}</dd>` : ''}
+        ${fee.total > 0 ? `<dt>Fee</dt><dd>${aed(fee.total)}</dd>` : ''}
       </dl>`)}
-      ${card('Workers & vehicles', `${workers.map(w => `<div class="list-row"><span class="avatar">${initials(w.name)}</span><span class="grow"><b>${esc(w.name)}</b><span>${esc(w.role)} · ${esc(w.idType)}</span></span>${badge(expiry(w.idExpiry).label, expiry(w.idExpiry).tone)}</div>`).join('')}${vehicles.map(v => `<div class="list-row"><span class="ic tone-neutral">${ic('car')}</span><span class="grow"><b>${esc(v.plate)}</b><span>${esc(v.make)} · ${esc(v.color)}</span></span>${badge(expiry(v.regExpiry).label, expiry(v.regExpiry).tone)}</div>`).join('')}${!workers.length && !vehicles.length ? '<p class="muted small" style="padding:12px">No workers or vehicles on this pass.</p>' : ''}`, { tight: true })}
+      ${card('Workers & vehicles', `${workers.map(w => workerRow(w)).join('')}${extras.map(e => workerRow(e.p, e.x)).join('')}${addBtn}${vehicles.map(v => `<div class="list-row"><span class="ic tone-neutral">${ic('car')}</span><span class="grow"><b>${esc(v.plate)}</b><span>${esc(v.make)} · ${esc(v.color)}${v.tons ? ' · ' + v.tons + ' t' : ''}${t.model === 'trip' || (p.tripsBy && p.tripsBy[v.id] > 1) ? ' · ' + plural(tripsOf(p, v.id), 'trip') : ''}</span></span>${badge(expiry(v.regExpiry).label, expiry(v.regExpiry).tone)}</div>`).join('')}${!workers.length && !vehicles.length ? '<p class="muted small" style="padding:12px">No workers or vehicles on this pass.</p>' : ''}`, { tight: true })}
       ${card('Documents', (p.docs || []).length ? p.docs.map(d => `<div class="list-row"><span class="ic tone-bad" style="font-size:10px;font-weight:800">PDF</span><span class="grow"><b>${esc(d)}</b><span>Submitted ${fmt(p.updated)}</span></span>${btn('', { v: 'ghost', sm: true, icon: 'download', act: 'download', id: d, title: 'Download ' + d })}</div>`).join('') : '<p class="muted small" style="padding:12px">No documents were needed.</p>', { tight: true })}
     </div>
     <div class="stack">
       ${p.status === 'approved' ? card('Entry QR code', `<div class="row" style="gap:16px;flex-wrap:nowrap"><div class="qr">${qrSvg(p.id)}</div><div class="stack-sm"><p class="small muted">One code covers the permit. Each worker also gets a personal code by SMS.</p>${btn('Share codes', { sm: true, icon: 'send', act: 'shareCodes', id: p.id })}</div></div><p class="xs faint">Design placeholder. This is not a real access code.</p>`) : ''}
-      ${card('Progress', `<div class="timeline">${steps.map((s, i) => `<div class="tl ${s[2] ? 'done' : i === nowIdx && !['cancelled', 'expired'].includes(p.status) ? 'now' : ''}"><span class="dot">${s[2] ? ic('check') : ''}</span><div class="grow"><b>${s[0]}</b><span>${s[1]}</span></div></div>`).join('')}</div>`)}
-      ${card('Questions?', `<p class="small muted">Contact ${esc(community().name)} and quote <span class="mono">${p.id}</span>.</p><div class="row">${btn('Copy reference', { sm: true, icon: 'copy', act: 'copy', id: p.id })}${btn('Contact community', { sm: true, v: 'ghost', go: 'help' })}</div>`)}
+      ${payCard}
+      ${card('Approval timeline', approvalTimeline(p), { id: 'approval-timeline' })}
+      ${card('Questions?', `<p class="small muted">Contact ${esc(communityOf(p.community).name)} and quote <span class="mono">${p.id}</span>.</p><div class="row">${btn('Copy reference', { sm: true, icon: 'copy', act: 'copy', id: p.id })}${btn('Contact community', { sm: true, v: 'ghost', go: 'help' })}</div>`)}
     </div>
   </div>`;
 }
@@ -585,11 +687,27 @@ function validate(step) {
     if (!d.from) e.from = 'Choose a start date.'; else if (d.from < min) e.from = `Start on or after ${fmt(min)}. The community needs 2 days' notice.`;
     if (!d.to) e.to = 'Choose an end date.'; else if (d.from && d.to < d.from) e.to = 'The end date must be on or after the start date.';
     if (d.start && d.end && d.end <= d.start) e.end = 'Finish time must be after the start time.';
+    const tt = typeOf(d.type);
+    if (tt.maxDays && d.from && d.to && !e.to && Math.round((D(d.to) - D(d.from)) / 864e5) + 1 > tt.maxDays) e.to = `${tt.name} can last up to ${plural(tt.maxDays, 'day')}. Choose an earlier end date.`;
+    if (tt.amcAllowed && d.amc === 'yes') {
+      if (!FREQ[d.amcFreq]) e.amcFreq = 'Choose how often visits are needed.';
+      if (!(Number(d.amcVisits) >= 1) || !Number.isInteger(Number(d.amcVisits))) e.amcVisits = 'Enter a whole number, 1 or more.';
+    }
   }
   if (step === 'materials' && !d.noMaterials && !d.materials.length) e.materials = 'Add at least one item, or turn on “No materials or equipment”.';
-  if (step === 'workvehicles' && !d.noVehicles && !d.vehicles.length) e.vehicles = 'Select a vehicle, or turn on “No vehicles needed”.';
+  if (step === 'workvehicles') {
+    const trip = typeOf(d.type).model === 'trip';
+    if (trip && !d.vehicles.length) e.vehicles = 'A delivery needs at least one vehicle. Select a vehicle or add a new one.';
+    else if (!trip && !d.noVehicles && !d.vehicles.length) e.vehicles = 'Select a vehicle, or turn on “No vehicles needed”.';
+    if (trip || !d.noVehicles) {
+      const noTons = d.vehicles.map(vehicle).filter(v => v && !(Number(v.tons) > 0));
+      if (noTons.length) e.tons = `${noTons.map(v => v.plate).join(', ')}: add the vehicle weight in tons. Choose Edit weight below.`;
+    }
+  }
   if (step === 'personnel') {
+    const lim = typeOf(d.type).maxEmployees;
     if (!d.workers.length) e.workers = 'Select at least one worker.';
+    else if (lim && d.workers.length > lim) e.workers = `${typeOf(d.type).name} allows up to ${plural(lim, 'worker')}. Remove ${d.workers.length - lim}.`;
     const bad = d.workers.map(person).filter(p => p && p.idExpiry < TODAY);
     if (bad.length) e.workers = `${bad.map(p => p.name).join(', ')}: ID has expired. Upload the renewed ID or remove the worker.`;
   }
@@ -616,7 +734,6 @@ function validate(step) {
   if (step === 'review' && !d.consent) e.consent = 'Confirm the information is correct.';
   if (step === 'review') {
     if (S.company.licenceExpiry && S.company.licenceExpiry < TODAY) e.licence = 'Your trade licence has expired. Upload the renewed licence in Settings › Company & billing.';
-    S.companyDocs.filter(c => c.required && c.file && !c.noExpiry && c.expiry && c.expiry < TODAY).forEach(c => { e['cd-' + c.id] = `Your ${c.name} has expired. Upload the renewed document in Settings › Company documents.`; });
   }
   return e;
 }
@@ -662,6 +779,15 @@ const WZ_SUB = {
   pdf: 'Read the community’s terms, tick every box, then sign once at the bottom.',
   review: 'Check everything before you send it. You cannot edit while it is under review.',
 };
+function feeBox(x, o = {}) {
+  const t = typeOf(x.type);
+  if (!t.paid) return `<div class="fee-box free"><div><b>No fee</b><p class="small muted">${esc(t.name)} is free.</p></div></div>`;
+  const f = feeFor(x);
+  let body;
+  if (t.model === 'trip' && !f.lines.length) body = `<div class="fee-lines">${t.tiers.map((r, i) => `<div><span>${tierLabel(t, i)} · per trip</span><b>${aed(r.price)}</b></div>`).join('')}</div><p class="xs faint">Choose your vehicles on the Vehicles step to see the total.</p>`;
+  else body = feeLines(f);
+  return `<div class="fee-box"><div><b>${o.review ? 'Fee' : 'Fee estimate'}${f.total ? ': ' + aed(f.total) : ''}</b><p class="small muted">Payment is due after the community approves. You get your QR codes once payment is made.</p></div>${body}</div>`;
+}
 function pDetails() {
   const d = S.draft, E = k => errOf('details', k);
   const t = typeOf(d.type);
@@ -671,18 +797,23 @@ function pDetails() {
     ${F({ id: 'f-property', label: 'Building', req: true, bind: 'd.property', options: PROPERTIES, ph: 'Choose a building', err: E('property') })}
     ${combo({ id: 'f-units', label: 'Units', req: true, bind: 'd.units', options: UNITS.map(u => ({ value: u, label: u })), ph: 'Search and select units', searchPh: 'Search units', full: true, err: E('units'), hint: 'Add more than one unit only if the same work happens in each.' })}
   </div>`)}
-  ${card('Permit type', `<div class="choice-grid" role="radiogroup" aria-label="Permit type">${PERMIT_TYPES.map(x => `<label class="choice"><input type="radio" name="ptype" value="${x.id}" data-bind="d.type" data-rerender ${d.type === x.id ? 'checked' : ''}><span class="radio"></span><span class="grow"><b>${x.name}</b><small>${x.desc}</small><small class="faint">${plural(x.docs.length, 'required document')}</small></span></label>`).join('')}</div>
+  ${card('Permit type', `<div class="choice-grid" role="radiogroup" aria-label="Permit type">${PERMIT_TYPES.map(x => `<label class="choice"><input type="radio" name="ptype" value="${x.id}" data-bind="d.type" data-rerender ${d.type === x.id ? 'checked' : ''}><span class="radio"></span><span class="grow"><b>${x.name}</b><small>${x.desc}</small><small class="faint">${plural(x.docs.length, 'required document')} · ${limitsShort(x)}</small><small class="fee-tag ${x.paid ? 'paid' : ''}">${feeShort(x)}${x.closure ? ' · Final inspection' : ''}</small></span></label>`).join('')}</div>
+    ${feeBox(d)}
     ${alertBox('info', `${t.name} needs: ${t.docs.map(k => DOCS[k].name).join(', ')}`, t.optional.length ? `May also be requested: ${t.optional.map(k => DOCS[k].name).join(', ')}.` : '', btn('Checklist & templates', { sm: true, act: 'checklist' }))}`)}
   ${card('About the work', `<div class="grid-2">
     ${F({ id: 'f-title', label: 'Work title', req: true, bind: 'd.title', ph: 'For example, Painting work', err: E('title') })}
     ${F({ id: 'f-contact', label: 'Site contact', req: true, bind: 'd.contact', ph: 'Name of the person on site', err: E('contact'), attrs: 'list="people-list"' })}
     ${F({ id: 'f-description', label: 'Description', opt: true, bind: 'd.description', type: 'textarea', full: true, ph: 'Main tasks, noisy work, drilling, areas affected', hint: 'Mention any noisy work, drilling or water/power shutdowns.' })}
     ${F({ id: 'f-phone', label: 'Contact phone', req: true, bind: 'd.phone', type: 'tel', ph: '+971 50 000 0000', err: E('phone') })}
-    <div class="field"><span class="label">Annual maintenance contract?</span>${seg('amc', 'd.amc', [['no', 'No'], ['yes', 'Yes']])}<span class="hint">Choose Yes if this work is covered by an AMC.</span></div>
+    ${t.amcAllowed ? `<div class="field"><span class="label">Annual maintenance contract?</span>${seg('amc', 'd.amc', [['no', 'No'], ['yes', 'Yes']], true)}<span class="hint">Choose Yes if this work is covered by an AMC.</span></div>` : ''}
   </div><datalist id="people-list">${S.people.map(p => `<option value="${esc(p.name)}">`).join('')}</datalist>`)}
+  ${t.amcAllowed && d.amc === 'yes' ? card('Maintenance visits', `<div class="grid-2">
+    ${F({ id: 'f-amcFreq', label: 'How often are visits needed?', req: true, bind: 'd.amcFreq', options: Object.entries(FREQ).map(([k, v]) => [k, v[0]]), ph: 'Choose how often', err: E('amcFreq') })}
+    ${F({ id: 'f-amcVisits', label: 'Visits required each period', req: true, bind: 'd.amcVisits', type: 'number', attrs: 'min="1" step="1"', err: E('amcVisits'), hint: d.amcFreq ? `For example, 2 means 2 visits each ${FREQ[d.amcFreq][1]}.` : '' })}
+  </div>`, { sub: 'Once approved, the work appears in the community’s maintenance contracts and under passes.' }) : ''}
   ${card('Dates & hours', `<div class="grid-2">
     ${F({ id: 'f-from', label: 'Start date', req: true, bind: 'd.from', type: 'date', err: E('from'), attrs: `min="${addDays(TODAY, 2)}"`, hint: `Earliest start: ${fmt(addDays(TODAY, 2))}` })}
-    ${F({ id: 'f-to', label: 'End date', req: true, bind: 'd.to', type: 'date', err: E('to'), attrs: `min="${d.from || addDays(TODAY, 2)}"` })}
+    ${F({ id: 'f-to', label: 'End date', req: true, bind: 'd.to', type: 'date', err: E('to'), attrs: `min="${d.from || addDays(TODAY, 2)}"`, hint: t.maxDays ? `${t.name}: up to ${plural(t.maxDays, 'day')}` : 'No limit on the number of days' })}
     ${F({ id: 'f-start', label: 'Daily start time', bind: 'd.start', type: 'time' })}
     ${F({ id: 'f-end', label: 'Daily finish time', bind: 'd.end', type: 'time', err: E('end'), hint: 'Community working hours: 08:00–18:00, Saturday to Thursday.' })}
   </div>`, { sub: 'Times are in the community’s local time (GST, UTC+4).' })}`);
@@ -698,25 +829,34 @@ function pMaterials() {
 function selectRows(kind) {
   const d = S.draft;
   if (kind === 'vehicles') {
-    return S.vehicles.map(v => { const e = expiry(v.regExpiry); const blocked = e.tone === 'bad'; return `<label class="select-row ${blocked ? 'disabled' : ''}"><input type="checkbox" data-act-change="toggleSel" data-kind="vehicles" value="${v.id}" ${d.vehicles.includes(v.id) ? 'checked' : ''} ${blocked ? 'disabled' : ''}><span class="ic tone-neutral" style="width:34px;height:34px;border-radius:8px;display:grid;place-items:center">${ic('car')}</span><span class="grow"><b>${esc(v.plate)}</b><span>${esc(v.make)} · ${esc(v.type)} · ${esc(v.color)}</span></span>${badge(e.label, e.tone)}${blocked ? btn('Renew', { v: 'link', act: 'editVehicle', id: v.id, cls: 'small' }) : ''}</label>`; }).join('');
+    return S.vehicles.map(v => { const e = expiry(v.regExpiry); const blocked = e.tone === 'bad'; return `<label class="select-row ${blocked ? 'disabled' : ''}"><input type="checkbox" data-act-change="toggleSel" data-kind="vehicles" value="${v.id}" ${d.vehicles.includes(v.id) ? 'checked' : ''} ${blocked ? 'disabled' : ''}><span class="ic tone-neutral" style="width:34px;height:34px;border-radius:8px;display:grid;place-items:center">${ic('car')}</span><span class="grow"><b>${esc(v.plate)}</b><span>${esc(v.make)} · ${esc(v.type)} · ${esc(v.color)} · ${Number(v.tons) > 0 ? v.tons + ' t' : 'weight missing'}</span></span>${badge(e.label, e.tone)}${blocked ? btn('Renew', { v: 'link', act: 'editVehicle', id: v.id, cls: 'small' }) : ''}</label>`; }).join('');
   }
   const q = (ui.search.workers || '').toLowerCase();
   return S.people.filter(p => !q || (p.name + p.role + p.idNo).toLowerCase().includes(q)).map(p => { const e = expiry(p.idExpiry); const blocked = e.tone === 'bad'; return `<label class="select-row ${blocked ? 'disabled' : ''}"><input type="checkbox" data-act-change="toggleSel" data-kind="workers" value="${p.id}" ${d.workers.includes(p.id) ? 'checked' : ''} ${blocked ? 'disabled' : ''}><span class="avatar">${initials(p.name)}</span><span class="grow"><b>${esc(p.name)}</b><span>${esc(p.role)} · ${esc(p.idType)} ${esc(p.idNo)}</span></span>${badge(e.label, e.tone)}${blocked ? btn('Update ID', { v: 'link', act: 'editPerson', id: p.id, cls: 'small' }) : ''}</label>`; }).join('') || emptyState('search', 'No one matches', 'Try another name.');
 }
 function pVehiclesStep() {
-  const d = S.draft;
+  const d = S.draft, t = typeOf(d.type), trip = t.model === 'trip';
+  if (trip && d.noVehicles) d.noVehicles = false;
+  const sel = d.vehicles.map(vehicle).filter(Boolean);
+  const tripRows = sel.map(v => {
+    const price = trip ? tierPrice(t, v.tons) : 0, n = tripsOf(d, v.id);
+    return `<div class="trip-row"><span class="grow"><b>${esc(v.plate)}</b><span class="xs faint">${Number(v.tons) > 0 ? v.tons + ' t' : 'Weight missing'}${trip && Number(v.tons) > 0 ? ' · ' + aed(price) + ' per trip' : ''}</span></span>
+      <div class="trip-in">${F({ id: 'f-trips-' + v.id, label: 'Trips', bind: 'd.tripsBy.' + v.id, value: d.tripsBy && d.tripsBy[v.id] !== undefined ? d.tripsBy[v.id] : n, type: 'number', attrs: 'min="1" step="1" inputmode="numeric"' })}</div>
+      ${trip ? `<b class="trip-fee" data-fee="${v.id}">${aed(n * price)}</b>` : ''}${btn('Edit weight', { v: 'ghost', sm: true, act: 'editVehicle', id: v.id, title: 'Edit ' + v.plate })}</div>`;
+  }).join('');
   return wizard('workvehicles', expiryAlert(expiryWarnings(d, 'vehicles')) + card('Vehicles for this work', `
-    ${sw('f-vehicles', 'd.noVehicles', 'No vehicles needed', 'Turn on if workers arrive on foot or by public transport.')}
+    ${trip ? '<p class="small muted">A delivery needs at least one vehicle. The fee is per trip, by vehicle weight.</p>' : sw('f-vehicles', 'd.noVehicles', 'No vehicles needed', 'Turn on if workers arrive on foot or by public transport.')}
     ${d.noVehicles ? '' : `<div class="stack-sm">${selectRows('vehicles')}</div>
-    <div class="row between"><div style="max-width:240px">${F({ id: 'f-trips', label: 'Expected trips', opt: true, bind: 'd.trips', type: 'number', attrs: 'min="1"' })}</div>${btn('Add a vehicle', { icon: 'plus', act: 'addVehicle' })}</div>`}
-    ${errOf('workvehicles', 'vehicles') ? `<span class="err" id="f-vehicles-err">${ic('alert')}${errOf('workvehicles', 'vehicles')}</span>` : ''}`));
+    <div class="row between"><span class="small muted">${plural(sel.length, 'vehicle')} selected</span>${btn('Add a vehicle', { icon: 'plus', act: 'addVehicle' })}</div>`}
+    ${errOf('workvehicles', 'vehicles') ? `<span class="err" id="f-vehicles-err">${ic('alert')}${errOf('workvehicles', 'vehicles')}</span>` : ''}`)
+    + (!d.noVehicles && sel.length ? card('Trips per vehicle', `<div class="stack-sm">${tripRows}</div>${trip ? feeLines(feeFor(d)) : ''}${errOf('workvehicles', 'tons') ? `<span class="err">${ic('alert')}${errOf('workvehicles', 'tons')}</span>` : ''}`, { sub: trip ? 'How many times will each vehicle come in? Each trip is charged.' : 'How many times will each vehicle come in?' }) : ''));
 }
 function pPersonnel() {
   const d = S.draft;
   return wizard('personnel', expiryAlert(expiryWarnings(d, 'workers')) + card('Workers on site', `
     <div class="row between"><div class="search grow" style="max-width:360px">${ic('search')}<input class="input" id="f-workers" data-search="workers" placeholder="Search employees" value="${esc(ui.search.workers || '')}" aria-label="Search employees"></div>${btn('Add employee', { icon: 'plus', act: 'addPerson' })}</div>
     <div class="stack-sm" id="workers-list">${selectRows('workers')}</div>
-    <div class="row between"><span class="small muted"><b>${d.workers.length}</b> selected · Community limit 12 per pass</span>${d.workers.length ? btn('Clear selection', { v: 'ghost', sm: true, act: 'clearWorkers' }) : ''}</div>
+    <div class="row between"><span class="small muted"><b>${d.workers.length}</b> selected${typeOf(d.type).maxEmployees ? ` · ${typeOf(d.type).name} allows up to ${typeOf(d.type).maxEmployees} workers` : ''}</span>${d.workers.length ? btn('Clear selection', { v: 'ghost', sm: true, act: 'clearWorkers' }) : ''}</div>
     ${errOf('personnel', 'workers') ? `<span class="err">${ic('alert')}${esc(errOf('personnel', 'workers'))}</span>` : ''}`));
 }
 const CHECK_STEPS = ['Uploading…', 'Checking the document…', 'Reading the expiry date…'];
@@ -951,14 +1091,111 @@ function saveBytes(bytes, name) {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
+/* ================= Permit and invoice PDFs (built in the browser with pdf-lib) ================= */
+const pdfClean = t => String(t ?? '').replace(/[^\x20-\x7E -ÿ–—‘’“”•…]/g, '?').replace(/ /g, ' ');
+async function pdfKit() {
+  if (!window.PDFLib) throw new Error('The PDF tools did not load.');
+  const { PDFDocument, StandardFonts, rgb } = window.PDFLib;
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica), bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const W = 595.28, H = 841.89, M = 42, ink = rgb(0.08, 0.12, 0.2), grey = rgb(0.4, 0.45, 0.52), rule = rgb(0.84, 0.87, 0.91), soft = rgb(0.95, 0.96, 0.98);
+  const K = { doc, font, bold, W, H, M, ink, grey, rule, soft, rgb, y: H - M, page: doc.addPage([W, H]) };
+  K.wrap = (t, f, size, maxW) => {
+    const out = [];
+    pdfClean(t).split('\n').forEach(par => { let cur = ''; par.split(/\s+/).filter(Boolean).forEach(w => { const tr = cur ? cur + ' ' + w : w; if (f.widthOfTextAtSize(tr, size) <= maxW) cur = tr; else { if (cur) out.push(cur); cur = w; } }); out.push(cur); });
+    return out.length ? out : [''];
+  };
+  K.need = h => { if (K.y - h < M) { K.page = doc.addPage([W, H]); K.y = H - M; } };
+  K.text = (t, x, y, o = {}) => K.page.drawText(pdfClean(t), { x, y, size: o.size || 10, font: o.bold ? bold : font, color: o.color || ink });
+  K.para = (t, x, maxW, o = {}) => { const size = o.size || 10, lh = o.lh || size + 3.5; K.wrap(t, o.bold ? bold : font, size, maxW).forEach(l => { K.need(lh); K.text(l, x, K.y - size, o); K.y -= lh; }); };
+  K.heading = t => { K.need(30); K.y -= 10; K.text(t.toUpperCase(), M, K.y - 9, { size: 8.5, bold: true, color: grey }); K.y -= 14; K.page.drawLine({ start: { x: M, y: K.y }, end: { x: W - M, y: K.y }, thickness: 0.7, color: rule }); K.y -= 8; };
+  K.row = (label, value, w = 110) => { const lines = K.wrap(value || '—', font, 10, W - 2 * M - w); K.need(lines.length * 13 + 2); K.text(label, M, K.y - 10, { size: 9, color: grey }); lines.forEach((l, i) => K.text(l, M + w, K.y - 10 - i * 13)); K.y -= lines.length * 13 + 3; };
+  K.hex = c => { let h = c.replace('#', ''); if (h.length === 3) h = h.split('').map(x => x + x).join(''); return rgb(parseInt(h.slice(0, 2), 16) / 255, parseInt(h.slice(2, 4), 16) / 255, parseInt(h.slice(4, 6), 16) / 255); };
+  K.table = (cols, rows) => {
+    // cols: [{ h, w, right }]. Rows are arrays of strings.
+    const draw = (cells, head) => {
+      const wrapped = cells.map((c, i) => K.wrap(c, head ? bold : font, 9, cols[i].w - 8)), n = Math.max(...wrapped.map(l => l.length)), h = n * 11.5 + 8;
+      K.need(h);
+      if (head) K.page.drawRectangle({ x: M, y: K.y - h, width: W - 2 * M, height: h, color: soft });
+      let x = M;
+      wrapped.forEach((ls, i) => { ls.forEach((l, j) => { const tw = (head ? bold : font).widthOfTextAtSize(l, 9); K.text(l, cols[i].right ? x + cols[i].w - 6 - tw : x + 4, K.y - 13 - j * 11.5, { size: 9, bold: head, color: head ? grey : ink }); }); x += cols[i].w; });
+      K.y -= h; K.page.drawLine({ start: { x: M, y: K.y }, end: { x: W - M, y: K.y }, thickness: 0.5, color: rule });
+    };
+    draw(cols.map(c => c.h), true); rows.forEach(r => draw(r, false));
+  };
+  return K;
+}
+async function permitPdf(p) {
+  const K = await pdfKit(), { W, H, M } = K;
+  const t = typeOf(p.type), c = communityOf(p.community), inv = invoiceOf(p), fee = feeFor(p);
+  K.text(c.name, M, K.y - 12, { size: 13, bold: true });
+  K.text('WORK PERMIT', M, K.y - 28, { size: 8.5, bold: true, color: K.grey });
+  K.y -= 38;
+  const qw = 92, qx = W - M - qw, qy = H - M - qw - 6;
+  K.page.drawRectangle({ x: qx - 4, y: qy - 4, width: qw + 8, height: qw + 8, color: K.rgb(1, 1, 1), borderColor: K.rule, borderWidth: 0.8 });
+  const k = qw / 21;
+  [...qrSvg(p.id).matchAll(/<rect x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)" fill="(#[0-9a-fA-F]{3,6})"\/>/g)].forEach(m => K.page.drawRectangle({ x: qx + m[1] * k, y: qy + (21 - Number(m[2]) - Number(m[4])) * k, width: m[3] * k, height: m[4] * k, color: K.hex(m[5]) }));
+  K.text('Sample code', qx + 18, qy - 16, { size: 7.5, color: K.grey });
+  K.para(p.title, M, W - 2 * M - qw - 20, { size: 19, bold: true, lh: 24 });
+  K.text(p.id, M, K.y - 11, { size: 11, bold: true, color: K.grey }); K.y -= 20;
+  K.text(`Status: ${(STATUS[p.status] || [p.status])[0]}`, M, K.y - 10, { size: 9.5, color: K.grey }); K.y -= 16;
+  K.y = Math.min(K.y, qy - 22);
+  K.heading('Work details');
+  K.row('Permit type', t.name); K.row('Location', `${p.property} · ${p.units.join(', ')}`); K.row('Work dates', range(p.from, p.to)); K.row('Daily hours', p.hours || '—');
+  K.row('Company', `${S.company.name}${S.company.trn ? ' · TRN ' + S.company.trn : ''}`);
+  if (p.amc && p.amc.freq) K.row('Maintenance contract', `${FREQ[p.amc.freq][0]} · ${plural(Number(p.amc.visits), 'visit')} each ${FREQ[p.amc.freq][1]}`);
+  K.heading('Workers');
+  const ws = (p.workers || []).map(person).filter(Boolean).map(w => `${w.name} · ${w.role}`);
+  (p.extraWorkers || []).forEach(x => { const w = person(x.id); if (w) ws.push(`${w.name} · ${w.role} (added after approval${x.revoked ? ', revoked by the community' : ''})`); });
+  if (!ws.length) K.row('', 'None'); ws.forEach(w => K.para('• ' + w, M + 4, W - 2 * M - 4));
+  const vs = (p.vehicles || []).map(vehicle).filter(Boolean);
+  K.heading('Vehicles');
+  if (!vs.length) K.para('None', M + 4, 400); vs.forEach(v => K.para(`• ${v.plate} · ${v.make} · ${v.color}${v.tons ? ' · ' + v.tons + ' t' : ''}${t.model === 'trip' ? ' · ' + plural(tripsOf(p, v.id), 'trip') : ''}`, M + 4, W - 2 * M - 4));
+  K.heading('Approvals');
+  const ap = p.approvals || [];
+  if (ap.length) K.table([{ h: 'Department / step', w: 118 }, { h: 'Approved by', w: 92 }, { h: 'Date and time', w: 98 }, { h: 'Comment', w: W - 2 * M - 308 }], ap.map(a => [a.step + (a.outcome && a.outcome !== 'Approved' ? ` (${a.outcome})` : ''), a.by, fmtDT(a.at), a.note || '—']));
+  else K.para('No approvals recorded yet.', M + 4, 400);
+  if (fee.total > 0) { K.heading('Payment'); K.row('Fee', aed(fee.total)); K.row('Status', inv ? `Paid online on ${fmtDT(inv.paidAt)}` : 'Not paid yet'); if (inv) K.row('Payment reference', inv.id); }
+  K.need(30); K.y -= 14;
+  K.para(`Issued through the Buzzin contractor portal on ${fmt(TODAY)}. Show the entry code at the gate. This permit is only valid on the dates and hours above.`, M, W - 2 * M, { size: 8, color: K.grey });
+  return K.doc.save();
+}
+function invoiceHtml(inv) {
+  const p = S.permits.find(x => x.id === inv.permitId) || { title: inv.permitId, id: inv.permitId }, c = communityOf(inv.community || p.community), b = S.billing;
+  return `<div class="invoice">
+    <div class="inv-top"><div class="inv-from">${logoTile(c.logo, c.name, 'xs')}<div><b>${esc(c.name)}</b><span>${esc(c.area)}</span><span>${esc(c.email || '')}</span></div></div><div class="inv-no"><h3>Invoice</h3><span class="mono">${esc(inv.id)}</span><span>Date: ${fmtDT(inv.paidAt)}</span></div></div>
+    <div class="inv-bill"><span class="eyebrow">Bill to</span><b>${esc(b.legal || S.company.name)}</b><span>${esc([b.addr1, b.addr2].filter(Boolean).join(', '))}</span><span>${esc([b.city, b.state, b.country].filter(Boolean).join(', '))}</span><span>TRN: ${esc(S.company.trn || '—')}</span></div>
+    <div class="inv-for"><span class="eyebrow">For</span><span>${esc(p.title)} · <span class="mono">${esc(p.id)}</span></span></div>
+    <table class="inv-table"><thead><tr><th>Description</th><th class="r">Amount</th></tr></thead><tbody>${inv.lines.map(l => `<tr><td>${esc(l.label)}</td><td class="r">${aed(l.amount)}</td></tr>`).join('')}</tbody><tfoot><tr><td>Total</td><td class="r">${aed(inv.amount)}</td></tr></tfoot></table>
+    <div class="inv-foot"><span class="inv-status">${esc(inv.status)}</span><span>Paid ${esc(inv.method.toLowerCase())} on ${fmtDT(inv.paidAt)}</span></div></div>`;
+}
+async function invoicePdf(inv) {
+  const K = await pdfKit(), { W, M } = K;
+  const p = S.permits.find(x => x.id === inv.permitId) || { title: inv.permitId, id: inv.permitId }, c = communityOf(inv.community || p.community), b = S.billing;
+  K.text(c.name, M, K.y - 14, { size: 15, bold: true }); K.text(c.area + (c.email ? ' · ' + c.email : ''), M, K.y - 30, { size: 9, color: K.grey });
+  const right = (t, y, o) => { const f = o.bold ? K.bold : K.font, w = f.widthOfTextAtSize(pdfClean(t), o.size || 10); K.text(t, W - M - w, y, o); };
+  right('INVOICE', K.y - 14, { size: 20, bold: true }); right(inv.id, K.y - 30, { size: 10, bold: true, color: K.grey }); right('Date: ' + fmtDT(inv.paidAt), K.y - 44, { size: 9, color: K.grey });
+  K.y -= 66; K.page.drawLine({ start: { x: M, y: K.y }, end: { x: W - M, y: K.y }, thickness: 0.8, color: K.rule }); K.y -= 14;
+  K.text('BILL TO', M, K.y - 8, { size: 8, bold: true, color: K.grey }); K.y -= 16;
+  [b.legal || S.company.name, [b.addr1, b.addr2].filter(Boolean).join(', '), [b.city, b.state, b.country].filter(Boolean).join(', '), 'TRN: ' + (S.company.trn || '—')].forEach((l, i) => K.para(l, M, 300, { size: 10, bold: i === 0 }));
+  K.y -= 6; K.text('FOR', M, K.y - 8, { size: 8, bold: true, color: K.grey }); K.y -= 16; K.para(`${p.title} (${p.id})`, M, W - 2 * M);
+  K.y -= 14;
+  K.table([{ h: 'Description', w: W - 2 * M - 120 }, { h: 'Amount', w: 120, right: true }], inv.lines.map(l => [l.label, aed(l.amount)]).concat([['Total', aed(inv.amount)]]));
+  K.y -= 18; K.text('STATUS', M, K.y - 8, { size: 8, bold: true, color: K.grey }); K.text(inv.status.toUpperCase(), M + 50, K.y - 9, { size: 11, bold: true, color: K.rgb(0.05, 0.5, 0.3) });
+  K.y -= 18; K.para(`Paid ${inv.method.toLowerCase()} on ${fmtDT(inv.paidAt)}.`, M, W - 2 * M, { size: 9, color: K.grey });
+  K.y -= 20; K.para('Sample invoice from the Buzzin contractor portal design preview. Not a tax document.', M, W - 2 * M, { size: 8, color: K.grey });
+  return K.doc.save();
+}
+
 function pReview() {
   const d = S.draft, t = typeOf(d.type);
   const sec = (title, step, rows) => card(title, `<dl class="dl">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v || '<span class="faint">Not provided</span>'}</dd>`).join('')}</dl>`, { action: btn('Edit', { v: 'ghost', sm: true, icon: 'edit', act: 'gotoStep', id: step }) });
   const docs = t.docs.concat(t.optional).filter(k => d.docs[k] && d.docs[k].file).map(k => `${DOCS[k].name} <span class="faint">· ${d.docs[k].noExpiry ? 'No expiry' : 'Valid to ' + fmt(d.docs[k].expiry)}</span>`).join('<br>');
   return wizard('review', `${expiryAlert(expiryWarnings(d))}${alertBox('info', 'Submitting does not approve your request', `${esc(community().name)} reviews every request. Work can start only after approval.`)}
-    ${sec('Work details', 'details', [['Community', esc(community().name)], ['Location', esc([d.property, d.units.join(', ')].filter(Boolean).join(' · '))], ['Permit type', esc(t.name)], ['Work', esc(d.title)], ['Description', esc(d.description)], ['Site contact', esc([d.contact, d.phone].filter(Boolean).join(' · '))], ['Dates', d.from ? range(d.from, d.to) + ` · ${d.start}–${d.end}` : ''], ['AMC', d.amc === 'yes' ? 'Yes' : 'No']])}
+    ${feeBox(d, { review: true })}
+    ${sec('Work details', 'details', [['Community', esc(community().name)], ['Location', esc([d.property, d.units.join(', ')].filter(Boolean).join(' · '))], ['Permit type', esc(t.name)], ['Work', esc(d.title)], ['Description', esc(d.description)], ['Site contact', esc([d.contact, d.phone].filter(Boolean).join(' · '))], ['Dates', d.from ? range(d.from, d.to) + ` · ${d.start}–${d.end}` : ''], ['AMC', t.amcAllowed ? (d.amc === 'yes' && FREQ[d.amcFreq] ? `Yes · ${FREQ[d.amcFreq][0]} · ${plural(Number(d.amcVisits) || 0, 'visit')} each ${FREQ[d.amcFreq][1]}` : 'No') : '']])}
     ${sec('Materials', 'materials', [['Items', d.noMaterials ? 'None' : d.materials.map(m => `${esc(m.name)} × ${m.qty} ${esc(m.unit)}`).join('<br>')]])}
-    ${sec('Vehicles', 'workvehicles', [['Vehicles', d.noVehicles ? 'None' : d.vehicles.map(vehicle).filter(Boolean).map(v => esc(v.plate + ' · ' + v.make)).join('<br>')], ['Expected trips', esc(d.trips)]])}
+    ${sec('Vehicles', 'workvehicles', [['Vehicles', d.noVehicles ? 'None' : d.vehicles.map(vehicle).filter(Boolean).map(v => esc(`${v.plate} · ${v.make} · ${v.tons || '?'} t · ${plural(tripsOf(d, v.id), 'trip')}`)).join('<br>')]])}
     ${sec('Workers', 'personnel', [['On site', d.workers.map(person).filter(Boolean).map(p => esc(`${p.name} · ${p.role}`)).join('<br>')]])}
     ${sec('Documents', 'documents', [['Uploaded', docs]])}
     ${sec('Terms & signature', 'pdf', [['Terms', formsFor(d).length ? formsFor(d).map(f => `${esc(f.published.name)} · v${f.published.version} <span class="faint">· ${Object.values((d.ticks || {})[formKey(f)] || {}).filter(Boolean).length} of ${f.published.fields.length} ticked</span>`).join('<br>') : 'Nothing to sign'], ['Signed by', d.signer && d.signer.sig ? esc(`${d.signer.name} · ${d.signer.position}`) : '']])}
@@ -1065,7 +1302,7 @@ function pVehicles() {
   return `${pageHead('Vehicles', 'Save vehicle details once and reuse them on any pass.', btn('Add vehicle', { v: 'primary', icon: 'plus', act: 'addVehicle' }))}
   <section class="card">
     <div class="toolbar"><div class="search">${ic('search')}<input class="input" id="vehicle-search" data-search="vehicles" placeholder="Search plate, make or type" value="${esc(ui.search.vehicles || '')}" aria-label="Search vehicles"></div></div>
-    ${list.length ? `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Plate</th><th>Vehicle</th><th>Registration</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${list.map(v => { const e = expiry(v.regExpiry); return `<tr><td><div class="person"><span class="avatar navy" style="border-radius:8px">${ic('car')}</span><div class="t-main"><b>${esc(v.plate)}</b><span>${esc(v.type)}</span></div></div></td><td data-m="sub">${esc(v.make)} · ${esc(v.color)}</td><td data-m="side">${badge(e.label, e.tone)}</td><td class="t-actions">${btn('Edit', { v: 'ghost', sm: true, act: 'editVehicle', id: v.id })}${btn('', { v: 'ghost', sm: true, icon: 'trash', act: 'removeVehicle', id: v.id, title: 'Remove ' + v.plate })}</td></tr>`; }).join('')}</tbody></table></div>` : emptyState('car', 'No vehicles found', 'Try another search.')}
+    ${list.length ? `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Plate</th><th>Vehicle and weight</th><th>Registration</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${list.map(v => { const e = expiry(v.regExpiry); return `<tr><td><div class="person"><span class="avatar navy" style="border-radius:8px">${ic('car')}</span><div class="t-main"><b>${esc(v.plate)}</b><span>${esc(v.type)}</span></div></div></td><td data-m="sub">${esc(v.make)} · ${esc(v.color)} · ${Number(v.tons) > 0 ? v.tons + ' t' : 'weight missing'}</td><td data-m="side">${badge(e.label, e.tone)}</td><td class="t-actions">${btn('Edit', { v: 'ghost', sm: true, act: 'editVehicle', id: v.id })}${btn('', { v: 'ghost', sm: true, icon: 'trash', act: 'removeVehicle', id: v.id, title: 'Remove ' + v.plate })}</td></tr>`; }).join('')}</tbody></table></div>` : emptyState('car', 'No vehicles found', 'Try another search.')}
     <div class="pager"><span>${list.length} of ${S.vehicles.length} vehicles</span></div>
   </section>`;
 }
@@ -1251,6 +1488,7 @@ function renderModal() {
   if (m.type === 'vehicle') { const E = m.errs || {}; return modalFrame({ title: m.data.id ? 'Edit vehicle' : 'Add vehicle', sub: 'Registration must be valid on the work dates.', size: 'lg', body: `<div class="grid-2">
     ${F({ id: 'vh-plate', label: 'Plate number', req: true, bind: 'm.plate', err: E.plate, ph: 'For example, Dubai N 12345' })}
     ${F({ id: 'vh-type', label: 'Vehicle type', req: true, bind: 'm.type', options: ['Car', 'Van', 'Pickup', 'Truck', 'Motorbike'] })}
+    ${F({ id: 'vh-tons', label: 'Vehicle weight', req: true, bind: 'm.tons', type: 'number', addon: 'tons', attrs: 'min="0.1" step="0.1" inputmode="decimal"', err: E.tons, hint: 'Loaded weight in tons. Delivery fees depend on it.' })}
     ${F({ id: 'vh-make', label: 'Make and model', opt: true, bind: 'm.make' })}
     ${F({ id: 'vh-color', label: 'Colour', opt: true, bind: 'm.color' })}
     ${F({ id: 'vh-exp', label: 'Registration expiry', req: true, bind: 'm.regExpiry', type: 'date', rerender: true, err: E.regExpiry, hint: readHint(m.data.fileObj, m.data.regExpiry) })}
@@ -1267,7 +1505,7 @@ function renderModal() {
     ${E.sig ? `<span class="err">${ic('alert')}${E.sig}</span>` : ''}`,
     foot: btn('Cancel', { act: 'closeModal' }) + btn('Apply signature', { v: 'primary', act: 'saveSign' }) }); }
   if (m.type === 'companyDoc') { const E = m.errs || {}; return modalFrame({ title: m.data.id ? 'Replace document' : 'Add company document', body: `
-    ${F({ id: 'cd-name', label: 'Document', req: true, bind: 'm.name', options: ['Public liability insurance', "Workmen's compensation insurance", 'Contractor all-risk insurance', 'VAT registration certificate', 'Company profile', 'Chamber of commerce certificate', 'Other'], disabled: !!m.data.id })}
+    ${F({ id: 'cd-name', label: 'Document', req: true, bind: 'm.name', options: ['VAT registration certificate', 'Company profile', 'Letter of authority', 'Other'], disabled: !!m.data.id })}
     <div class="field"><span class="label">File<span class="req">*</span></span>${uploader({ key: 'cdoc', bind: 'm.fileObj', label: 'document', file: m.data.fileObj })}${E.file ? `<span class="err">${ic('alert')}${E.file}</span>` : ''}</div>
     ${F({ id: 'cd-exp', label: 'Expiry date', bind: 'm.expiry', type: 'date', rerender: true, disabled: m.data.noExpiry, err: E.expiry, hint: readHint(m.data.fileObj, m.data.expiry) })}
     ${sw('cd-noexp', 'm.noExpiry', 'No expiry date', 'Only for documents that never expire.')}`,
@@ -1275,7 +1513,7 @@ function renderModal() {
   if (m.type === 'access') { const E = m.errs || {}; return modalFrame({ title: 'Request access to a community', sub: 'The community reviews your company documents before giving access.', body: `
     ${combo({ id: 'ac-comm', label: 'Community', req: true, bind: 'm.community', options: S.directory.map(n => ({ value: n, label: n })), ph: 'Search communities', searchPh: 'Type a community name', err: E.community })}
     ${F({ id: 'ac-msg', label: 'Message', opt: true, bind: 'm.message', type: 'textarea', rows: 3, ph: 'For example, We maintain HVAC systems for several owners in your community.' })}
-    ${alertBox('info', 'Shared with the community', 'Company name, trade licence, TRN and your insurance documents.')}`,
+    ${alertBox('info', 'Shared with the community', 'Company name, trade licence and TRN.')}`,
     foot: btn('Cancel', { act: 'closeModal' }) + btn('Send request', { v: 'primary', icon: 'send', act: 'sendAccess' }) }); }
   if (m.type === 'drawer') return `<div class="overlay drawer-overlay" data-overlay style="place-items:stretch start"><div class="drawer left sidebar" role="dialog" aria-modal="true" aria-label="Menu" style="position:static;height:100%"><div class="side-inner">${sidebar(route())}</div></div></div>`;
   if (m.type === 'pickDoc') {
@@ -1283,6 +1521,23 @@ function renderModal() {
     const list = companyDocList().sort((a, b) => (b.name === want) - (a.name === want));
     return modalFrame({ title: 'Choose from company documents', sub: `For: ${want}. The file and its expiry date are copied into this permit.`, body: `<div class="stack-sm">${list.map(c => { const e = c.file ? expiry(c.expiry, c.noExpiry) : { tone: 'bad', label: 'Not uploaded' }; const off = !c.file || e.tone === 'bad'; return `<button type="button" class="select-row ${off ? 'disabled' : ''}" ${off ? 'disabled' : `data-act="useCompanyDoc" data-id="${c.id}"`}><span class="ic tone-neutral" style="width:34px;height:34px;border-radius:8px;display:grid;place-items:center">${ic('file')}</span><span class="grow"><b>${esc(c.name)}</b><span>${c.file ? esc(c.file) : 'No file yet'}</span></span>${c.name === want ? badge('Best match', 'info') : ''}${badge(e.label, e.tone)}</button>`; }).join('')}</div><p class="xs faint">Expired documents can’t be used. Renew them in Settings › Company documents.</p>`,
       foot: btn('Cancel', { act: 'closeModal' }) + btn('Manage company documents', { v: 'ghost', go: 'settings-documents' }) });
+  }
+  if (m.type === 'pay') { const E = m.errs || {}, p = S.permits.find(x => x.id === m.data.permitId), f = feeFor(p); return modalFrame({ title: 'Pay online', sub: `${esc(p.title)} · ${p.id}`, body: `
+    ${feeLines(f)}
+    <div class="grid-2">
+    ${F({ id: 'pay-no', label: 'Card number', req: true, bind: 'm.cardNo', full: true, ph: '1234 5678 9012 3456', err: E.cardNo, attrs: 'inputmode="numeric" autocomplete="off"' })}
+    ${F({ id: 'pay-exp', label: 'Expiry (MM/YY)', req: true, bind: 'm.exp', ph: 'MM/YY', err: E.exp, attrs: 'inputmode="numeric" autocomplete="off"' })}
+    ${F({ id: 'pay-cvc', label: 'CVC', req: true, bind: 'm.cvc', ph: '123', err: E.cvc, attrs: 'inputmode="numeric" autocomplete="off"' })}
+    ${F({ id: 'pay-name', label: 'Name on card', req: true, bind: 'm.holder', full: true, err: E.holder, attrs: 'autocomplete="off"' })}
+    </div><p class="xs faint">Sample payment form. No real card is charged. Try 4242 4242 4242 4242.</p>`,
+    foot: btn('Cancel', { act: 'closeModal' }) + btn(`Pay ${aed(f.total)}`, { v: 'primary', icon: 'lock', act: 'payConfirm' }) }); }
+  if (m.type === 'invoice') { const inv = S.invoices.find(x => x.id === m.data.id); return modalFrame({ title: 'Invoice ' + esc(inv.id), size: 'lg', body: invoiceHtml(inv), foot: btn('Close', { act: 'closeModal' }) + btn('Download invoice PDF', { v: 'primary', icon: 'download', act: 'downloadInvoice', id: inv.id }) }); }
+  if (m.type === 'addWorker') {
+    const p = S.permits.find(x => x.id === m.data.permitId), t = typeOf(p.type);
+    const on = new Set([...(p.workers || []), ...(p.extraWorkers || []).map(x => x.id)]);
+    const list = S.people.filter(x => !on.has(x.id)), sel = m.data.sel || [];
+    return modalFrame({ title: 'Add worker', sub: `Add people to ${esc(p.title)} after approval. ${esc(communityOf(p.community).name)} can revoke them.`, body: list.length ? `<div class="stack-sm">${list.map(x => { const e = expiry(x.idExpiry), off = e.tone === 'bad'; return `<button type="button" class="select-row ${off ? 'disabled' : ''}" ${off ? 'disabled' : `data-act="pickExtra" data-id="${x.id}"`} aria-pressed="${sel.includes(x.id)}"><input type="checkbox" tabindex="-1" ${sel.includes(x.id) ? 'checked' : ''} ${off ? 'disabled' : ''}><span class="avatar">${initials(x.name)}</span><span class="grow"><b>${esc(x.name)}</b><span>${esc(x.role)} · ${esc(x.idType)}</span></span>${badge(e.label, e.tone)}</button>`; }).join('')}</div>${m.errs && m.errs.pick ? `<span class="err">${ic('alert')}${m.errs.pick}</span>` : ''}` : '<p class="muted">Everyone in your company is already on this permit. Add a new employee under Employees first.</p>',
+      foot: btn('Cancel', { act: 'closeModal' }) + btn(sel.length ? `Add ${plural(sel.length, 'worker')}` : 'Add worker', { v: 'primary', act: 'addWorkerConfirm', disabled: !list.length }) });
   }
   if (m.type === 'preview') return modalFrame({ title: esc(m.data.name), sub: 'File preview', size: 'lg', body: `<div class="paper" style="max-width:none;min-height:320px;place-content:center;text-align:center"><p>Preview of <b>${esc(m.data.name)}</b></p><p class="small">The live portal shows the uploaded file here.</p></div>`, foot: btn('Close', { act: 'closeModal' }) });
   return '';
@@ -1394,7 +1649,7 @@ const ACT = {
   requestAccess() { ui.pop = null; ui.modal = { type: 'access', data: { community: '', message: '' } }; render(); },
   sendAccess() { const m = ui.modal; if (!m.data.community) { m.errs = { community: 'Choose a community.' }; render(); return; } openConfirm({ title: 'Send access request?', message: `${m.data.community} will see your company details and documents.`, confirmText: 'Send request', icon: 'send', onConfirm: () => { S.communities.push({ id: uid('c'), name: m.data.community, area: 'Dubai', status: 'pending', since: null, email: '' }); S.directory = S.directory.filter(x => x !== m.data.community); persist(); toast(`Access requested from ${m.data.community}`); } }); },
   withdrawAccess(t) { const c = S.communities.find(x => x.id === t.dataset.id); openConfirm({ title: `Withdraw request to ${c.name}?`, message: 'You can request access again later.', confirmText: 'Withdraw', tone: 'danger', icon: 'x', onConfirm: () => { S.communities = S.communities.filter(x => x !== c); S.directory.push(c.name); persist(); toast('Request withdrawn'); } }); },
-  leaveCommunity(t) { const c = S.communities.find(x => x.id === t.dataset.id); const open = S.permits.filter(p => p.community === c.id && ['review', 'changes', 'approved'].includes(p.status)).length; openConfirm({ title: `Leave ${c.name}?`, message: `Your company will lose access. ${open ? `${plural(open, 'open pass', 'open passes')} will be cancelled.` : 'You have no open passes there.'} You will need to request access again to return.`, confirmText: 'Leave community', tone: 'danger', icon: 'logout', requireText: 'LEAVE', onConfirm: () => { c.status = 'left'; c.changedOn = TODAY; S.permits.forEach(p => { if (p.community === c.id && ['review', 'changes', 'approved'].includes(p.status)) p.status = 'cancelled'; }); persist(); toast(`You left ${c.name}`); if (c.id === S.community) go('communities'); } }); },
+  leaveCommunity(t) { const c = S.communities.find(x => x.id === t.dataset.id); const open = S.permits.filter(p => p.community === c.id && ['review', 'changes', 'payment', 'approved'].includes(p.status)).length; openConfirm({ title: `Leave ${c.name}?`, message: `Your company will lose access. ${open ? `${plural(open, 'open pass', 'open passes')} will be cancelled.` : 'You have no open passes there.'} You will need to request access again to return.`, confirmText: 'Leave community', tone: 'danger', icon: 'logout', requireText: 'LEAVE', onConfirm: () => { c.status = 'left'; c.changedOn = TODAY; S.permits.forEach(p => { if (p.community === c.id && ['review', 'changes', 'payment', 'approved'].includes(p.status)) p.status = 'cancelled'; }); persist(); toast(`You left ${c.name}`); if (c.id === S.community) go('communities'); } }); },
   requestAgain(t) { const c = S.communities.find(x => x.id === t.dataset.id); openConfirm({ title: `Request access to ${c.name} again?`, message: `${c.name} will see your company details and documents and decide whether to give access.`, confirmText: 'Send request', icon: 'send', onConfirm: () => { c.status = 'pending'; c.changedOn = TODAY; persist(); toast(`Access requested from ${c.name}`); } }); },
   openCommunity(t) { S.community = t.dataset.id; ui.tab = 'all'; persist(); go('home'); },
   kpi(t) { const k = t.dataset.id; if (k === 'expiring') { const e = expiringItems()[0]; go(e ? e.go : 'people'); return; } ui.tab = k; go('permits'); },
@@ -1414,10 +1669,10 @@ const ACT = {
   startPermitFromChecklist() { const t = ui.modal.data.type; ui.modal = null; if (S.draft && STEPS.some(s => s[0] === route())) { S.draft.type = t; persist(); render(); return; } ACT.startPermit(); if (S.draft && !S.draft.title) { S.draft.type = t; persist(); render(); } },
   duplicate(t) {
     const p = S.permits.find(x => x.id === t.dataset.id); ui.pop = null;
-    const doIt = () => { S.draft = blankDraft({ community: p.community, property: p.property, units: [...p.units], type: p.type, title: p.title, workers: [...(p.workers || [])].filter(id => expiry(person(id)?.idExpiry).tone !== 'bad'), vehicles: [...(p.vehicles || [])], contact: S.profile.name, phone: S.profile.phone }); persist(); toast(`New draft created from ${p.id}. Choose new dates.`); wzGo('details'); };
+    const doIt = () => { S.draft = blankDraft({ community: p.community, property: p.property, units: [...p.units], type: p.type, title: p.title, workers: [...(p.workers || [])].filter(id => expiry(person(id)?.idExpiry).tone !== 'bad'), vehicles: [...(p.vehicles || [])], tripsBy: clone(p.tripsBy || {}), contact: S.profile.name, phone: S.profile.phone }); persist(); toast(`New draft created from ${p.id}. Choose new dates.`); wzGo('details'); };
     if (S.draft) openConfirm({ title: 'Replace your current draft?', message: `Duplicating ${p.id} replaces your draft “${S.draft.title || 'Untitled request'}”.`, confirmText: 'Replace draft', tone: 'warn', onConfirm: doIt }); else doIt();
   },
-  updatePermit(t) { const p = S.permits.find(x => x.id === t.dataset.id); ui.pop = null; openConfirm({ title: 'Update and resubmit?', message: `We'll open ${p.id} as a draft so you can fix what the community asked for, then submit it again.`, confirmText: 'Open for editing', icon: 'edit', onConfirm: () => { S.draft = blankDraft({ id: p.id, resubmit: p.id, community: p.community, property: p.property, units: [...p.units], type: p.type, title: p.title, from: p.from, to: p.to, contact: S.profile.name, phone: S.profile.phone, workers: [...p.workers], vehicles: [...p.vehicles], noMaterials: true, reached: 4 }); persist(); wzGo('documents'); } }); },
+  updatePermit(t) { const p = S.permits.find(x => x.id === t.dataset.id); ui.pop = null; openConfirm({ title: 'Update and resubmit?', message: `We'll open ${p.id} as a draft so you can fix what the community asked for, then submit it again.`, confirmText: 'Open for editing', icon: 'edit', onConfirm: () => { S.draft = blankDraft({ id: p.id, resubmit: p.id, community: p.community, property: p.property, units: [...p.units], type: p.type, title: p.title, from: p.from, to: p.to, contact: S.profile.name, phone: S.profile.phone, workers: [...p.workers], vehicles: [...p.vehicles], tripsBy: clone(p.tripsBy || {}), noMaterials: true, reached: 4 }); persist(); wzGo('documents'); } }); },
   cancelPermit(t) {
     const p = S.permits.find(x => x.id === t.dataset.id); ui.pop = null;
     const was = p.status;
@@ -1425,7 +1680,54 @@ const ACT = {
       extra: () => F({ id: 'cx-reason', label: 'Reason', bind: 'm.reason', options: ['Work no longer needed', 'Dates changed', 'Submitted by mistake', 'Other'], ph: 'Choose a reason' }),
       onConfirm: () => { p.status = 'cancelled'; p.updated = TODAY; persist(); toast(`${p.id} cancelled`, { undo: () => { p.status = was; persist(); render(); } }); } });
   },
-  download(t) { toast(`${t.dataset.id} downloaded (preview)`); ui.pop = null; render(); },
+  async download(t) {
+    ui.pop = null; render();
+    const p = S.permits.find(x => x.id === t.dataset.id);
+    if (!p) { toast(`${t.dataset.id} downloaded (preview)`); return; }
+    try { saveBytes(await permitPdf(p), p.id + '-permit.pdf'); toast('Permit PDF downloaded'); }
+    catch (e) { toast('Could not create the permit PDF. ' + e.message, { err: true }); }
+  },
+  async downloadInvoice(t) {
+    const inv = S.invoices.find(x => x.id === t.dataset.id);
+    try { saveBytes(await invoicePdf(inv), inv.id + '.pdf'); toast('Invoice PDF downloaded'); }
+    catch (e) { toast('Could not create the invoice PDF. ' + e.message, { err: true }); }
+  },
+  viewInvoice(t) { ui.pop = null; ui.modal = { type: 'invoice', data: { id: t.dataset.id } }; render(); },
+  payNow(t) { ui.pop = null; const p = S.permits.find(x => x.id === t.dataset.id); ui.modal = { type: 'pay', data: { permitId: p.id, cardNo: '', exp: '', cvc: '', holder: S.profile.name } }; render(); },
+  payConfirm() {
+    const m = ui.modal, d = m.data, e = {};
+    if (!/^\d{13,19}$/.test(d.cardNo.replace(/\s/g, ''))) e.cardNo = 'Enter the card number (13 to 19 digits).';
+    const mm = /^(\d{2})\s*\/\s*(\d{2})$/.exec(d.exp.trim());
+    if (!mm || +mm[1] < 1 || +mm[1] > 12) e.exp = 'Enter the expiry as MM/YY, for example 08/29.'; else if (iso(new Date(2000 + +mm[2], +mm[1], 0)) < TODAY) e.exp = 'This card has expired.';
+    if (!/^\d{3,4}$/.test(d.cvc.trim())) e.cvc = 'Enter the 3 or 4 digit code on the card.';
+    if (!d.holder.trim()) e.holder = 'Enter the name on the card.';
+    if (Object.keys(e).length) { m.errs = e; render(); return; }
+    m.errs = null;
+    const p = S.permits.find(x => x.id === d.permitId), f = feeFor(p);
+    openConfirm({ title: `Pay ${aed(f.total)}?`, message: `Your card ending ${d.cardNo.replace(/\s/g, '').slice(-4)} will be charged ${aed(f.total)} for ${p.id}. Your QR codes are ready straight after.`, confirmText: `Pay ${aed(f.total)}`, icon: 'lock', onConfirm: () => {
+      const inv = { id: 'INV-2026-' + String(S.nextInv++).padStart(4, '0'), permitId: p.id, community: p.community, amount: f.total, lines: f.lines, method: 'Online', paidAt: TODAY + 'T' + new Date().toTimeString().slice(0, 5), status: 'Paid' };
+      S.invoices.unshift(inv); p.status = 'approved'; p.updated = TODAY;
+      S.notifications.unshift({ id: uid('n'), title: `Payment received for ${p.id}`, body: `${aed(inv.amount)} paid online. Your QR codes are ready.`, when: 'Just now', go: 'permit-' + p.id, unread: false });
+      persist(); toast(`Payment received. ${inv.id} is ready and your QR codes are available.`);
+    } });
+    ui.modal.onCancel = m;
+  },
+  markComplete(t) {
+    ui.pop = null; const p = S.permits.find(x => x.id === t.dataset.id);
+    if (typeOf(p.type).closure) { go('completion-' + p.id); return; }
+    const was = p.status;
+    openConfirm({ title: 'Mark as completed?', message: `${p.title} (${p.id}) will be closed. QR codes stop working and workers cannot enter. This type of work needs no final inspection.`, confirmText: 'Mark as completed', icon: 'clipboard', onConfirm: () => { p.status = 'completed'; p.updated = TODAY; persist(); toast(`${p.id} marked as completed`, { undo: () => { p.status = was; persist(); render(); } }); } });
+  },
+  addWorker(t) { ui.pop = null; ui.modal = { type: 'addWorker', data: { permitId: t.dataset.id, sel: [] } }; render(); },
+  pickExtra(t) { const d = ui.modal.data, id = t.dataset.id; d.sel = d.sel.includes(id) ? d.sel.filter(x => x !== id) : [...d.sel, id]; if (ui.modal.errs) ui.modal.errs = null; render(); },
+  addWorkerConfirm() {
+    const m = ui.modal, p = S.permits.find(x => x.id === m.data.permitId), sel = m.data.sel, tt = typeOf(p.type);
+    if (!sel.length) { m.errs = { pick: 'Choose at least one person.' }; render(); return; }
+    const now = (p.workers || []).length + (p.extraWorkers || []).filter(x => !x.revoked).length;
+    if (tt.maxEmployees && now + sel.length > tt.maxEmployees) { m.errs = { pick: `${tt.name} allows up to ${tt.maxEmployees} workers. You can add ${Math.max(0, tt.maxEmployees - now)} more.` }; render(); return; }
+    openConfirm({ title: `Add ${plural(sel.length, 'worker')} to ${p.id}?`, message: `${sel.map(id => person(id).name).join(', ')} will get entry codes by SMS. ${communityOf(p.community).name} can revoke them.`, confirmText: 'Add to permit', icon: 'users', onConfirm: () => { p.extraWorkers = p.extraWorkers || []; sel.forEach(id => p.extraWorkers.push({ id, added: TODAY, revoked: null })); persist(); toast(`${plural(sel.length, 'worker')} added`); } });
+    ui.modal.onCancel = m;
+  },
   shareCodes(t) { openConfirm({ title: 'Send QR codes to workers?', message: `Each worker on ${t.dataset.id} gets their personal entry code by SMS.`, confirmText: 'Send codes', icon: 'send', onConfirm: () => toast('QR codes sent by SMS') }); },
   copy(t) { const v = t.dataset.id; const done = () => toast(`Copied ${v}`); try { navigator.clipboard.writeText(v).then(done, () => toast('Copy not available here. Select the text instead.', { err: true })); } catch (e) { toast('Copy not available here. Select the text instead.', { err: true }); } },
   demo(t) { toast(`${t.dataset.id} (preview)`); },
@@ -1446,8 +1748,8 @@ const ACT = {
     const warn = expiryWarnings(d);
     openConfirm({ extra: warn.length ? () => `<div class="alert alert-warn">${ic('alert')}<div class="grow"><strong>Close to expiry. The community may reject your permit.</strong>${expiryList(warn)}</div></div>` : null, title: d.resubmit ? `Resubmit ${d.resubmit}?` : 'Submit this request?', message: `${d.title} will be sent to ${community().name} for review. You can't edit it while it's under review.`, confirmText: d.resubmit ? 'Resubmit request' : 'Submit request', icon: 'send', onConfirm: () => {
       let id;
-      const rec = { community: d.community, kind: 'work', title: d.title, type: d.type, property: d.property, units: d.units, from: d.from, to: d.to, hours: `${d.start}–${d.end}`, status: 'review', updated: TODAY, workers: d.workers, vehicles: d.noVehicles ? [] : d.vehicles, materials: d.noMaterials ? 0 : d.materials.length, docs: Object.keys(d.docs).filter(k => d.docs[k].file).map(k => DOCS[k].name).concat(formsFor(d).map(f => f.published.name + ' (signed)')) };
-      if (d.resubmit) { id = d.resubmit; Object.assign(S.permits.find(p => p.id === id), rec, { message: '' }); } else { id = 'BZ-' + S.nextRef++; S.permits.unshift(Object.assign({ id }, rec)); }
+      const rec = { community: d.community, kind: 'work', title: d.title, type: d.type, property: d.property, units: d.units, from: d.from, to: d.to, hours: `${d.start}–${d.end}`, status: 'review', updated: TODAY, workers: d.workers, vehicles: d.noVehicles ? [] : d.vehicles, tripsBy: Object.fromEntries((d.noVehicles ? [] : d.vehicles).map(id => [id, tripsOf(d, id)])), amc: amcOn(d) ? { freq: d.amcFreq, visits: Number(d.amcVisits) } : null, approvals: [], materials: d.noMaterials ? 0 : d.materials.length, docs: Object.keys(d.docs).filter(k => d.docs[k].file).map(k => DOCS[k].name).concat(formsFor(d).map(f => f.published.name + ' (signed)')) };
+      if (d.resubmit) { id = d.resubmit; const old = S.permits.find(p => p.id === id); Object.assign(old, rec, { message: '', approvals: old.approvals || [] }); } else { id = 'BZ-' + S.nextRef++; S.permits.unshift(Object.assign({ id }, rec)); }
       S.notifications.unshift({ id: uid('n'), title: `${id} submitted`, body: `${d.title} was sent to ${community().name}.`, when: 'Just now', go: 'permit-' + id, unread: false });
       S.draft = null; ui.errs = {}; persist(); go('submitted-' + id);
     } });
@@ -1520,15 +1822,16 @@ const ACT = {
   },
   removePerson(t) { const p = person(t.dataset.id), i = S.people.indexOf(p); const used = S.permits.filter(x => ['review', 'approved', 'changes'].includes(x.status) && (x.workers || []).includes(p.id)); openConfirm({ title: `Remove ${p.name}?`, message: used.length ? `${p.name} is on ${plural(used.length, 'open pass', 'open passes')} (${used.map(x => x.id).join(', ')}). They stay on those passes but can't be added to new ones.` : 'They will be removed from your saved employees.', confirmText: 'Remove employee', tone: 'danger', onConfirm: () => { S.people.splice(i, 1); if (S.draft) S.draft.workers = S.draft.workers.filter(x => x !== p.id); persist(); toast(`${p.name} removed`, { undo: () => { S.people.splice(i, 0, p); persist(); render(); } }); } }); },
   peopleFilter(t) { ui.peopleFilter = t.dataset.id; render(); },
-  addVehicle() { ui.modal = { type: 'vehicle', data: { plate: '', type: 'Van', make: '', color: '', regExpiry: '', fileObj: null }, fromWizard: route() === 'workvehicles' }; render(); },
+  addVehicle() { ui.modal = { type: 'vehicle', data: { plate: '', type: 'Van', make: '', color: '', tons: '', regExpiry: '', fileObj: null }, fromWizard: route() === 'workvehicles' }; render(); },
   editVehicle(t) { const v = clone(vehicle(t.dataset.id)); v.fileObj = v.file ? { name: v.file } : null; ui.modal = { type: 'vehicle', data: v }; render(); },
   saveVehicle() {
     const m = ui.modal, d = m.data, errs = {};
     if (!d.plate.trim()) errs.plate = 'Enter the plate number.';
+    if (!(Number(d.tons) > 0)) errs.tons = 'Enter the weight in tons, for example 1.5.';
     if (!d.regExpiry) errs.regExpiry = 'Enter the registration expiry date.'; else if (d.regExpiry < TODAY) errs.regExpiry = 'This registration has expired.';
     if (!d.fileObj) errs.file = 'Upload the registration card.'; else if (d.fileObj.status === 'checking') errs.file = 'Wait for the document check to finish.';
     if (Object.keys(errs).length) { m.errs = errs; render(); return; }
-    const rec = { plate: d.plate, type: d.type, make: d.make || d.type, color: d.color || '—', regExpiry: d.regExpiry, file: d.fileObj.name };
+    const rec = { plate: d.plate, type: d.type, make: d.make || d.type, color: d.color || '—', tons: Number(d.tons), regExpiry: d.regExpiry, file: d.fileObj.name };
     if (d.id) Object.assign(vehicle(d.id), rec); else { const id = uid('v'); S.vehicles.push(Object.assign({ id }, rec)); if (m.fromWizard) { S.draft.vehicles.push(id); S.draft.noVehicles = false; } }
     ui.modal = null; persist(); toast(d.id ? `${d.plate} updated` : `${d.plate} added`); render();
   },
@@ -1599,7 +1902,7 @@ const ACT = {
     openConfirm({ title: 'Change your password?', message: 'You will use the new password the next time you sign in.', confirmText: 'Change password', icon: 'key', onConfirm: () => { ui.pw = { current: '', next: '', confirm: '', show: false }; persist(); toast('Password changed'); } });
   },
   deactivate() { openConfirm({ title: 'Deactivate your account?', message: `${S.company.name} loses access to every community. Approved passes are cancelled.`, confirmText: 'Deactivate account', tone: 'danger', icon: 'alert', requireText: 'DEACTIVATE', onConfirm: () => toast('Account deactivation requested (preview)') }); },
-  addCompanyDoc() { ui.modal = { type: 'companyDoc', data: { name: 'Contractor all-risk insurance', fileObj: null, expiry: '', noExpiry: false } }; render(); },
+  addCompanyDoc() { ui.modal = { type: 'companyDoc', data: { name: 'Letter of authority', fileObj: null, expiry: '', noExpiry: false } }; render(); },
   editCompanyDoc(t) { const d = S.companyDocs.find(x => x.id === t.dataset.id); ui.modal = { type: 'companyDoc', data: { id: d.id, name: d.name, fileObj: d.file ? { name: d.file } : null, expiry: d.expiry || '', noExpiry: !!d.noExpiry } }; render(); },
   saveCompanyDoc() {
     const m = ui.modal, d = m.data, errs = {};
@@ -1661,6 +1964,7 @@ document.addEventListener('input', e => {
   if (el.dataset.bind && el.type !== 'checkbox' && el.type !== 'radio' && el.tagName !== 'SELECT' && el.type !== 'file') {
     setB(el.dataset.bind, el.value);
     onBound(el);
+    if (el.id && el.id.startsWith('f-trips-')) render();
     if (el.dataset.signame !== undefined) { const s = document.getElementById('sig-typed'); if (s) s.textContent = el.value || ' '; }
     if (el.dataset.pwmeter !== undefined) { const s = pwScore(el.value); document.getElementById('pw-meter').dataset.s = el.value ? s : 0; const rules = [el.value.length >= 8, /[A-Z]/.test(el.value) && /[a-z]/.test(el.value), /\d/.test(el.value), /[^A-Za-z0-9]/.test(el.value)]; document.querySelectorAll('#pw-rules li').forEach((li, i) => { li.className = rules[i] ? 'ok' : ''; li.querySelector('svg').outerHTML = ic(rules[i] ? 'check' : 'info'); }); }
     if (el.dataset.require !== undefined) { const ok = document.getElementById('m-ok'); if (ok) ok.disabled = el.value !== ui.modal.requireText; }

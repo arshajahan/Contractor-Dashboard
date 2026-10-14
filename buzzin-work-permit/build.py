@@ -33,14 +33,14 @@ def contractor(out):
 def community(out):
     c = lambda *a: open(P('..', 'community', *a), encoding='utf-8').read()
     css = c('src', 'base.css') + '\n' + c('src', 'community.css')
-    js_files = ['core.js', 'terms-data.js', 'pdf-view.js', 'terms-editor.js', 'wp-data.js', 'boot.js', 'wp-review.js', 'wp-review2.js', 'wp-pages.js', 'wp-admin1.js', 'wp-admin2.js', 'wp-ws.js']
+    js_files = ['core.js', 'terms-data.js', 'pdf-view.js', 'terms-editor.js', 'wp-data.js', 'boot.js', 'wp-review.js', 'wp-review2.js', 'wp-pages.js', 'wp-pdf.js', 'wp-admin1.js', 'wp-admin2.js', 'wp-ws.js']
     js = '\n'.join(c('src', f) for f in js_files)
     vendor = '\n'.join('<script>\n' + c(f) + '\n</script>' for f in ['vendor/pdf.min.js', 'vendor/pdf.worker.min.js', 'vendor/pdf-lib.min.js', 'samples/sample-terms.js'])
     start = """
 ACT.signOut = () => openConfirm({ title: 'Sign out?', message: 'You will need your email and password to sign in again.', confirmText: 'Sign out', icon: 'logout', tone: 'warn', onConfirm: () => { BuzzinSession.clear(); location.href = '../index.html'; } });
 window.__androidBack = () => { if (ui.modal || ui.pop) { ui.modal = null; ui.pop = null; render(); return true; } return false; };
 const SES = BuzzinSession.require('community');
-if (SES) { const cfg = SES.role === 'admin' ? CFG_ADMIN : CFG_APPROVER; cfg.userId = SES.userId; cfg.docTitle = 'Buzzin Work Permit'; startApp(cfg, seedWP, validWP, WP_KEY); }
+if (SES) { const cfg = SES.role === 'admin' ? CFG_ADMIN : SES.role === 'reviewer' ? CFG_REVIEWER : CFG_APPROVER; cfg.userId = SES.userId; cfg.docTitle = 'Buzzin Work Permit'; startApp(cfg, seedWP, validWP, WP_KEY); }
 """
     html = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#13203A"><title>Buzzin Work Permit</title>

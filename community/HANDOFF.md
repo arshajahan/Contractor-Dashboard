@@ -31,3 +31,14 @@ Source is in `src/`; `python3 build.py` rebuilds `dist/`. Figma scenes: `figma/`
 
 ## To port
 Data lives in `wp-data.js` / `ev-data.js` (shape of your API). Page functions are `p…` in `wp-*.js` and `ev-pages.js`. Auth, email, PDF storage, QR issuing and payments are mocked.
+
+## v2 changes (Reviewer role, payments, closure)
+- **Gate security removed.** Replaced by a third team role, **Reviewer**: view-only plus extras an administrator switches on (access logs, issue passes, invite contractors, check people out by hand, mark work completed). Needs a name, email, designation, properties and at least one extra.
+- **Approvals.** Everyone, administrators included, decides only at their own department and level. An administrator can be given **force approve** in Team & roles; it skips remaining steps, needs a reason and is written to the history.
+- **Approval timeline** (who, when, comment) on every request and on the pass PDF.
+- **Paid permits.** Permit types can be fixed fee, per worker or per vehicle trip by weight band. After the last approval the request is **Payment pending**; the contractor pays online, an administrator can record cash or card. Invoices live in **Payments**. The pass and QR are issued after payment.
+- **Passes** list shows active, upcoming, expired, revoked, suspended and completed. Anyone allowed can **Mark as completed**; permit types with a final inspection send it to Final inspections, closed by the departments chosen on that permit type.
+- **Maintenance contracts** are created automatically when an AMC permit is approved (contractor chooses frequency and visits). No manual creation.
+- **Time limits.** People still inside after their permitted hours are flagged on dashboards and in Access logs, with manual check-out.
+- **Contractors.** Invite by email (existing accounts get access at once) or share the link (sign-ups wait for approval). Each company has an activity timeline. Only the trade licence is required; insurance removed.
+- **Properties** only edit approval levels (units come from the property system). Email attachments, gate-app link privacy and joining fee removed. "Keep contractor link private" is now "Hide your community from other contractors".

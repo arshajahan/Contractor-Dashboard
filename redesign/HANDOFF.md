@@ -32,7 +32,7 @@ The community **dropdown** in the top bar (logo, name and a Contractor tag) swit
 | Update Your Profile: Name*, Email Address*, Phone Number | Settings › My profile (same fields, plus photo, job title, language, time zone, date format) |
 | Separate "Save Changes" button per card | One sticky "Unsaved changes · Discard · Save" bar; leaving the page with unsaved changes asks first |
 
-New settings sections: Company documents (insurance, VAT certificate… with expiry status), Communities (switch, leave, request access), Notifications (email / SMS / in-portal per event), Two-step verification, Deactivate account. (No Team members or signed-in devices sections.)
+New settings sections: Company documents (VAT certificate, company profile and any other file, with expiry status), Communities (switch, leave, request access), Notifications (email / SMS / in-portal per event), Two-step verification, Deactivate account. (No Team members or signed-in devices sections.)
 
 ## Old prototype screen → new location
 
@@ -83,7 +83,7 @@ Implementation notes: store each form's PDF, field positions as % of page size, 
 
 ## Company documents and permits
 
-- **Company documents** (Settings) holds company-wide files: trade licence, insurance, VAT certificate and others, each with an expiry date. Upload once. Communities can see them, and the contractor is reminded before they expire.
+- **Company documents** (Settings) holds company-wide files: trade licence, VAT certificate and others, each with an expiry date. Upload once. Communities can see them, and the contractor is reminded before they expire.
 - In a permit's **Documents** step, each document offers **Upload from computer** or **Choose from company documents**. The picker puts the best match first. Expired or missing files can't be picked. Picking copies the file and its expiry date into the permit, and the file shows "From company documents".
 - After uploading from the computer, **Save to company documents for future permits** adds it to (or, after a confirmation, replaces it in) Company documents.
 
@@ -114,3 +114,12 @@ Implementation notes: store each form's PDF, field positions as % of page size, 
 ## Confirmation popups
 
 Submit request · Resubmit after changes · Submit visitor pass · Send inspection request (warns if checklist incomplete) · Send message to community · Delete draft · Start new request when a draft exists · Duplicate (replaces draft) · Withdraw request / Cancel pass (with reason) · Remove material / employee / vehicle / uploaded file / logo / signature / company document · Save company details · Change email · Change password · Turn 2-step verification on/off · Sign out · Switch community during a request · Leave community (type LEAVE) · Withdraw access request · Deactivate account (type DEACTIVATE) · Discard unsaved changes · Leave page with unsaved changes · Share QR codes. · Continue with documents close to expiry.
+
+## Changes in v4
+
+- Storage key `buzzin-redesign-v4` (seed `v: 4`); older saved data is discarded. `TODAY` is 2026-10-12 (same as the community side).
+- Insurance is gone. Only the trade licence is required. Company documents still work for any file (VAT certificate, Company profile, Letter of authority, Other). Fit-out needs scope + drawings.
+- `PERMIT_TYPES` now carry `paid`, `model` (`fixed` / `employee` / `trip`), `amount`, `tiers`, `closure`, `maxEmployees`, `maxDays` (0 = no limit), `amcAllowed`. New type `delivery` (per trip by vehicle tons: up to 1 t 50, up to 2 t 100, over 2 t 200 AED). `feeFor(x)` returns `{ total, lines }`.
+- Wizard: AMC card (maintenance only) with `amcFreq` and `amcVisits`; vehicles have `tons`; trips are per vehicle in `draft.tripsBy`; fee estimate on type choice and review; every type needs 1+ worker; delivery needs 1+ vehicle; worker and day limits are checked.
+- New statuses `payment`, `revoked`, `suspended`. Passes list has a "Revoked & suspended" tab; "Needs action" includes payment.
+- Permit detail: approval timeline (`permit.approvals` [{step, by, at, note, outcome}]), Pay now (online only, `ACT.payNow` / `ACT.payConfirm`), invoices (`S.invoices`, `ACT.viewInvoice`, `ACT.downloadInvoice`), Mark as completed (`ACT.markComplete`; closure types open the inspection request page), Add worker after approval (`S.rules.workersAfterApproval`, `permit.extraWorkers` [{id, added, revoked: null | {at, reason}}], `ACT.addWorker`), real PDFs for permit and invoice (pdf-lib).

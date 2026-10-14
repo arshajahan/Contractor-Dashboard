@@ -9,8 +9,10 @@ One Android app for two kinds of account. Every screen is in, with dummy data. N
 | Community approver | omar.siddiqui@buzzin-community.example | Approver@123 | Only requests at Security · Level 1 for Buzzin offices |
 | Community approver | daniel.okoro@buzzin-community.example | Approver@123 | Security · Level 2, plus access logs |
 | Community approver | priya.rao@buzzin-community.example | Approver@123 | Operations · Level 1 |
+| Community reviewer | noor.hassan@buzzin-community.example | Reviewer@123 | View-only. Extras switched on: access logs, issue passes, check people out |
+| Community reviewer | imran.qureshi@buzzin-community.example | Reviewer@123 | View-only. Extras switched on: access logs, invite contractors, mark work completed |
 
-The community account's **role** (admin or approver) comes from the account, so admin-only pages (settings, team, properties, reports) are not shown to approvers. The events module is not included.
+The community account's **role** (administrator, approver or reviewer) comes from the account. Administrators see everything and approve only at their own step unless an administrator switches on **force approve** for them (always logged). Approvers see only their step and properties. Reviewers are view-only plus the extras an administrator switches on in Team & roles. The events module is not included.
 
 ## Get the APK
 - **GitHub Actions (no setup):** Actions → "Buzzin Work Permit APK" → Run workflow → download `buzzin-work-permit-debug-apk`.

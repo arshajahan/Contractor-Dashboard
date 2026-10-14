@@ -33,7 +33,7 @@ const reqTitleCell = r => `<div class="t-title"><b>${esc(r.title)}</b><span><spa
 function reqTable(list, o = {}) {
   if (!list.length) return emptyState('inbox', o.emptyTitle || 'Nothing here', o.emptyText || 'No requests match.');
   return `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Request</th><th>Contractor</th><th>Location</th><th>Work dates</th><th>Waiting</th><th>Approval step</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>
-  ${list.map(r => { const st = curStage(r), mine = canDecide(r); return `<tr class="clickable" data-go="review-${r.id}">
+  ${list.map(r => { const st = curStage(r), mine = canActOn(r); return `<tr class="clickable" data-go="review-${r.id}">
     <td>${reqTitleCell(r)}</td><td data-m="sub">${esc(contractor(r.contractor).name)}</td>
     <td data-m="hide">${esc(r.unit)}<div class="mini">${esc(prop(r.property).name)}</div></td>
     <td data-m="hide" class="num">${range(r.from, r.to)}<div class="mini">${plural(r.people.length, 'worker')}</div></td>
@@ -41,7 +41,23 @@ function reqTable(list, o = {}) {
     <td data-m="hide">${r.status === 'review' ? `<div class="stack-sm" style="gap:5px">${stageTrack(r)}<span class="mini">${stageName(st)}</span></div>` : '<span class="faint">—</span>'}</td>
     <td class="t-actions">${r.status === 'review' ? btn(mine ? 'Review' : 'View', { v: mine ? 'primary' : 'secondary', sm: true, go: 'review-' + r.id }) : btn('View', { sm: true, v: 'ghost', go: 'review-' + r.id })}</td></tr>`; }).join('')}</tbody></table></div>`;
 }
-const queueIds = () => (isAdmin() ? pending() : myQueue()).slice().sort((a, b) => age(b) - age(a)).map(r => r.id);
+const queueIds = () => (myQueue().length || !isAdmin() ? myQueue() : pending()).slice().sort((a, b) => age(b) - age(a)).map(r => r.id);
+
+
+/* ---------- People who stayed past their permitted hours ---------- */
+function overstayAlert(list) {
+  if (!list.length) return '';
+  return alertBox('bad', `${plural(list.length, 'person is', 'people are')} past their time limit`, `${esc(list.slice(0, 2).map(o => person(o.pid).name).join(' and '))}${list.length > 2 ? ' and more' : ''} should have left. Check with the gate and check them out if needed.`, canViewLogs() ? btn('Open access logs', { sm: true, go: 'logs' }) : '', 'clock');
+}
+function overstayCard(list) {
+  if (!list.length) return '';
+  return card('Past their time limit', list.map(o => { const p = person(o.pid), pass = byId(S.passes, o.l.pass);
+    return `<div class="list-row"><span class="ic tone-bad">${ic('clock')}</span><span class="grow"><b>${esc(p.name)}</b><span>${esc(contractor(p.company).name)} · ${esc(pass ? pass.title : 'Pass')} · in since ${fmtDT(o.l.ts)} · should have left at ${o.end}</span></span>${badge(`${o.hours} h over`, 'bad')}${canCheckout() ? btn('Check out', { sm: true, act: 'checkout', id: o.pid }) : ''}</div>`; }).join(''), { tight: true, sub: 'Still inside after their permitted hours. These need a review.' });
+}
+ACT.checkout = t => {
+  const p = person(t.dataset.id);
+  openConfirm({ title: `Check out ${p.name}?`, message: 'Records them as having left now. Use this when they have gone but the gate did not scan them out.', confirmText: 'Check out', icon: 'logout', tone: 'warn', reason: { label: 'Note', required: false, ph: 'Optional. For example: left through the service gate.' }, onConfirm: d => { doCheckout(p.id, (d.reason || '').trim()); persist(); toast(`${p.name} checked out.`); } });
+};
 
 /* ---------- Admin dashboard ---------- */
 function pDashboardAdmin() {
@@ -55,12 +71,13 @@ function pDashboardAdmin() {
   const exp = expiringContractors();
   const feed = S.requests.flatMap(r => r.history.filter(h => /Approved|Rejected|Requested changes|Work closed|Final/.test(h.action)).map(h => ({ ...h, r }))).sort((x, y) => y.ts.localeCompare(x.ts)).slice(0, 6);
   const amcRows = S.amc.map(x => { const done = x.visits.length; return { x, done, ok: done >= x.required }; });
-  return `${pageHead(`Good morning, ${esc(firstName(me().name))}`, `Monday 12 October · ${esc(S.community.name)} · Dubai time`, btn('Issue a pass', { icon: 'plus', go: 'issue-pass' }) + btn('Review queue', { v: 'primary', go: 'queue', iconR: 'arrowR' }))}
+  return `${pageHead(`Good morning, ${esc(firstName(me().name))}`, `Monday 12 October · ${esc(S.community.name)} · Dubai time`, btn('Invite a contractor', { icon: 'mail', act: 'invite' }) + btn('Issue a pass', { icon: 'plus', go: 'issue-pass' }) + btn('Review queue', { v: 'primary', go: 'queue', iconR: 'arrowR' }))}
+  ${overstayAlert(overstayers())}
   ${over48.length ? alertBox('warn', `${plural(over48.length, 'request has', 'requests have')} waited over 48 hours`, `${esc(over48.map(r => r.title).slice(0, 2).join(' and '))}${over48.length > 2 ? ' and more' : ''} should be looked at first.`, btn('Open oldest', { sm: true, go: 'review-' + over48.sort((x, y) => age(y) - age(x))[0].id })) : ''}
   <div class="kpis">
     ${kpi({ label: 'Awaiting approval', value: pend.length, icon: 'inbox', tone: 'warn', go: 'queue', sub: over24.length ? `${over24.length} waiting over 24 h` : 'None waiting over 24 h', subTone: over24.length ? 'warn' : '' })}
-    ${kpi({ label: 'Starting within 48 hours', value: soon.length, icon: 'calendar', tone: 'info', go: 'calendar', sub: `${soonP} pending · ${soonA} approved` })}
-    ${kpi({ label: 'People on site now', value: onSite.length, icon: 'users', tone: 'ok', go: 'logs', sub: `${today.in} entries · ${today.out} exits today`, spark: mv.map(m => m.in) })}
+    ${kpi({ label: 'Payment pending', value: payPending().length, icon: 'receipt', tone: 'warn', go: 'queue', act: 'payTab', sub: payPending().length ? `${money(sum(payPending().map(r => feeFor(r).total)))} to collect` : 'Nothing to collect' })}
+    ${kpi({ label: 'People on site now', value: onSite.length, icon: 'users', tone: 'ok', go: 'logs', sub: `${overstayers().length ? overstayers().length + ' past time limit · ' : ''}${today.in} in · ${today.out} out today`, spark: mv.map(m => m.in) })}
     ${kpi({ label: 'Waiting for closure', value: closing.length, icon: 'clipboard', tone: 'neutral', go: 'inspections', sub: `${closing.filter(i => i.status === 'requested').length} to schedule · ${closing.filter(i => i.status === 'scheduled').length} scheduled` })}
   </div>
   <div class="grid-main">
@@ -70,6 +87,7 @@ function pDashboardAdmin() {
       ${card('Expiring contractor documents', exp.length ? exp.slice(0, 4).map(x => `<button class="link-row" data-go="contractor-${x.c.id}"><span class="ic tone-${x.e.tone}">${ic('file')}</span><span class="grow"><b>${esc(x.c.name)}</b><span>${esc(x.what)} · ${x.e.label}</span></span>${ic('right', 'faint')}</button>`).join('') : '<p class="muted small" style="padding:12px">All contractor documents are in date.</p>', { tight: true })}
     </div>
   </div>
+  ${overstayCard(overstayers())}
   <div class="dash-grid">
     ${chartCard({ id: 'age', title: 'How long requests have waited', sub: `${pend.length} pending requests`, how: true, go: 'queue', goLabel: 'Open queue', chart: hbars([{ label: 'Under 24 hours', value: a[0], color: 'var(--seq-250)', go: 'queue' }, { label: '24–48 hours', value: a[1], color: 'var(--seq-350)', go: 'queue' }, { label: 'Over 48 hours', value: a[2], color: 'var(--seq-550)', go: 'queue' }]), table: dataTable(['Waiting time', 'Requests'], [['Under 24 hours', a[0]], ['24–48 hours', a[1]], ['Over 48 hours', a[2]]]) })}
     ${chartCard({ id: 'backlog', title: 'Waiting by approval step', sub: 'Where pending requests are right now', how: true, go: 'queue', goLabel: 'Open queue', chart: hbars(back.map(([k, v]) => ({ label: k, value: v, go: 'queue' }))), table: dataTable(['Approval step', 'Requests'], back) })}
@@ -108,15 +126,16 @@ function pDashboardApprover() {
 function pQueue() {
   const admin = isAdmin(), vis = visibleRequests();
   const tabs = admin
-    ? [['all', 'All pending', vis.filter(r => r.status === 'review').length], ['late', 'Over 48 hours', vis.filter(r => r.status === 'review' && age(r) >= 48).length], ['soon', 'Starting soon', vis.filter(r => r.status === 'review' && r.from <= addDays(TODAY, 2)).length], ['changes', 'Waiting for contractor', vis.filter(r => r.status === 'changes').length], ['done', 'Recently decided', null]]
+    ? [['all', 'All pending', vis.filter(r => r.status === 'review').length], ['mine', 'Needs my decision', myQueue().length], ['pay', 'Payment pending', payPending().length], ['late', 'Over 48 hours', vis.filter(r => r.status === 'review' && age(r) >= 48).length], ['soon', 'Starting soon', vis.filter(r => r.status === 'review' && r.from <= addDays(TODAY, 2)).length], ['changes', 'Waiting for contractor', vis.filter(r => r.status === 'changes').length], ['done', 'Recently decided', null]]
     : [['mine', 'Needs my decision', myQueue().length], ['others', 'Waiting on others', pending().filter(r => !canDecide(r)).length], ['changes', 'Waiting for contractor', vis.filter(r => r.status === 'changes').length], ['done', 'Decided', null]];
   const tab = curTab('queue', tabs[0][0]);
-  let list = vis.filter(r => ({ all: r.status === 'review', late: r.status === 'review' && age(r) >= 48, soon: r.status === 'review' && r.from <= addDays(TODAY, 2), mine: r.status === 'review' && canDecide(r), others: r.status === 'review' && !canDecide(r), changes: r.status === 'changes', done: ['approved', 'rejected', 'inspection', 'completed'].includes(r.status) }[tab]));
+  let list = vis.filter(r => ({ all: r.status === 'review', late: r.status === 'review' && age(r) >= 48, soon: r.status === 'review' && r.from <= addDays(TODAY, 2), mine: r.status === 'review' && canDecide(r), others: r.status === 'review' && !canDecide(r), changes: r.status === 'changes', pay: r.status === 'payment', done: ['approved', 'rejected', 'inspection', 'completed'].includes(r.status) }[tab]));
   const q = (ui.search.queue || '').toLowerCase(), f = ui.filters;
   list = list.filter(r => !q || [r.title, r.id, contractor(r.contractor).name, r.unit].join(' ').toLowerCase().includes(q)).filter(r => !f.qprop || r.property === f.qprop).filter(r => !f.qtype || r.type === f.qtype);
   const sort = f.qsort || 'oldest';
   list.sort((a, b) => sort === 'start' ? a.from.localeCompare(b.from) : sort === 'company' ? contractor(a.contractor).name.localeCompare(contractor(b.contractor).name) : (tab === 'done' ? b.history.at(-1).ts.localeCompare(a.history.at(-1).ts) : age(b) - age(a)));
   const doneRows = `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Request</th><th>Contractor</th><th>Outcome</th><th>Decided</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${list.map(r => { const h = r.history.at(-1); return `<tr class="clickable" data-go="review-${r.id}"><td>${reqTitleCell(r)}</td><td data-m="sub">${esc(contractor(r.contractor).name)}</td><td data-m="side">${reqBadge(r)}</td><td data-m="hide"><div>${esc(h.actor)}</div><div class="mini">${fmtDT(h.ts)}</div></td><td class="t-actions">${btn('View', { v: 'ghost', sm: true, go: 'review-' + r.id })}</td></tr>`; }).join('')}</tbody></table></div>`;
+  const payRows = `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Request</th><th>Contractor</th><th>Amount</th><th>Fee</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${list.map(r => { const f = feeFor(r); return `<tr class="clickable" data-go="review-${r.id}"><td>${reqTitleCell(r)}</td><td data-m="sub">${esc(contractor(r.contractor).name)}</td><td data-m="side" class="num"><b>${money(f.total)}</b></td><td data-m="hide">${esc(f.lines.map(l => l[0]).join('; '))}</td><td class="t-actions">${isAdmin() ? btn('Record payment', { sm: true, v: 'primary', act: 'payOpen', id: r.id }) : btn('View', { sm: true, v: 'ghost', go: 'review-' + r.id })}</td></tr>`; }).join('')}</tbody></table></div>`;
   const chRows = `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Request</th><th>Contractor</th><th>Asked for</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${list.map(r => { const h = r.history.filter(x => /changes/.test(x.action)).at(-1) || r.history.at(-1); return `<tr class="clickable" data-go="review-${r.id}"><td>${reqTitleCell(r)}</td><td data-m="sub">${esc(contractor(r.contractor).name)}</td><td data-m="hide"><div class="clamp-2">${esc(h.note)}</div><div class="mini">${fmtDT(h.ts)} · ${esc(h.actor)}</div></td><td class="t-actions">${btn('View', { v: 'ghost', sm: true, go: 'review-' + r.id })}</td></tr>`; }).join('')}</tbody></table></div>`;
   return `${pageHead(admin ? 'Review queue' : 'My review queue', admin ? 'Pending work permit requests across every property.' : `Requests at ${esc(me().dept)} · Level ${me().level} for your properties.`, admin ? btn('Issue a pass', { icon: 'plus', go: 'issue-pass' }) : '')}
   <section class="card">${tabsBar('queue', tabs, tab)}
@@ -124,6 +143,28 @@ function pQueue() {
       <label class="sr" for="qprop">Property</label><select class="select" id="qprop" data-filter="qprop"><option value="">All properties</option>${S.properties.filter(p => inScope(me(), { property: p.id })).map(p => `<option value="${p.id}" ${f.qprop === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
       <label class="sr" for="qtype">Permit type</label><select class="select" id="qtype" data-filter="qtype"><option value="">All permit types</option>${S.permitTypes.map(t => `<option value="${t.id}" ${f.qtype === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>
       <span class="grow"></span><label class="sr" for="qsort">Sort</label><select class="select" id="qsort" data-filter="qsort"><option value="oldest" ${sort === 'oldest' ? 'selected' : ''}>${tab === 'done' ? 'Most recent' : 'Oldest first'}</option><option value="start" ${sort === 'start' ? 'selected' : ''}>Work start date</option><option value="company" ${sort === 'company' ? 'selected' : ''}>Contractor</option></select></div>
-    ${!list.length ? emptyState('inbox', tab === 'mine' ? 'You’re all caught up' : 'Nothing here', tab === 'mine' ? 'Nothing is waiting for your decision.' : (q || f.qprop || f.qtype ? 'No requests match your search or filters.' : 'No requests in this list.')) : tab === 'done' ? doneRows : tab === 'changes' ? chRows : reqTable(list)}
+    ${!list.length ? emptyState('inbox', tab === 'mine' ? 'You’re all caught up' : 'Nothing here', tab === 'mine' ? 'Nothing is waiting for your decision.' : (q || f.qprop || f.qtype ? 'No requests match your search or filters.' : 'No requests in this list.')) : tab === 'done' ? doneRows : tab === 'changes' ? chRows : tab === 'pay' ? payRows : reqTable(list)}
     <div class="pager"><span>Showing ${list.length} request${list.length === 1 ? '' : 's'}</span></div></section>`;
 }
+
+/* ---------- Reviewer dashboard (view-only account with switched-on extras) ---------- */
+function pDashboardReviewer() {
+  const u = me(), onSite = onSiteNow().filter(pid => { const l = lastLog(pid); return canSeeLog(l); }), over = overstayers(), mv = movementDays(7), today = mv[mv.length - 1];
+  const live = S.passes.filter(passVisible).filter(p => passState(p) === 'active');
+  const acts = [can('issue') ? btn('Issue a pass', { icon: 'plus', go: 'issue-pass' }) : '', can('invite') ? btn('Invite a contractor', { icon: 'mail', act: 'invite' }) : '', canViewLogs() ? btn('Access logs', { go: 'logs' }) : ''].join('');
+  const perms = [['logs', 'See access logs'], ['issue', 'Issue passes'], ['invite', 'Invite contractors'], ['checkout', 'Check people out'], ['complete', 'Mark work as completed']];
+  return `${pageHead(`Good morning, ${esc(firstName(u.name))}`, `${esc(u.title)} · ${esc(u.properties.map(p => prop(p).name).join(' and '))}`, acts)}
+  ${overstayAlert(over)}
+  <div class="kpis">
+    ${kpi({ label: 'On site now', value: onSite.length, icon: 'users', tone: 'ok', go: canViewLogs() ? 'logs' : 'passes', sub: `${today.in} in · ${today.out} out today`, spark: mv.map(m => m.in) })}
+    ${kpi({ label: 'Past time limit', value: over.length, icon: 'clock', tone: over.length ? 'bad' : 'neutral', go: canViewLogs() ? 'logs' : null, sub: over.length ? 'Need a review' : 'Everyone is within their hours' })}
+    ${kpi({ label: 'Active passes', value: live.length, icon: 'ticket', tone: 'info', go: 'passes', sub: 'Valid today' })}
+    ${kpi({ label: 'Work today', value: visibleRequests().filter(r => r.status === 'approved' && r.from <= TODAY && r.to >= TODAY).length, icon: 'calendar', tone: 'neutral', go: 'calendar', sub: 'Approved requests' })}
+  </div>
+  ${overstayCard(over)}
+  <div class="grid-main">
+    ${card('Passes valid today', live.length ? live.slice(0, 6).map(p => `<button class="link-row" data-go="pass-${p.id}"><span class="ic tone-ok">${ic('ticket')}</span><span class="grow"><b>${esc(p.title)}</b><span>${esc(holderName(p))} · ${esc(p.unit)} · ${range(p.from, p.to)}</span></span>${passBadge(p)}</button>`).join('') : '<p class="muted small" style="padding:12px;margin:0">No passes are valid today.</p>', { tight: true, action: btn('All passes', { v: 'ghost', sm: true, go: 'passes', iconR: 'arrowR' }) })}
+    ${card('What your account can do', `<ul class="can-list"><li class="yes">${ic('check')}<span>View passes, the calendar and final inspections</span></li>${perms.map(([k, l]) => `<li class="${can(k) ? 'yes' : 'no'}">${ic(can(k) ? 'check' : 'x')}<span>${l}${can(k) ? '' : ' (off)'}</span></li>`).join('')}</ul><p class="xs faint" style="margin:10px 0 0">An administrator can change these in Team & roles.</p>`)}
+  </div>`;
+}
+ACT.payTab = () => { ui.tab.queue = 'pay'; go('queue'); };
