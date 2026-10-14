@@ -51,14 +51,14 @@ function paymentCard(r) {
   return card('Fee', `<div class="stack-sm">${body}</div>`, { sub: t.name });
 }
 
-function tabOverview(r) {
+function tabOverview(r, inPass) {
   const insp = S.inspections.find(i => i.requestId === r.id), pass = r.passId && byId(S.passes, r.passId);
   return `<div class="stack-lg">
     ${card('Approval timeline', approvalTimeline(r), { sub: 'Who approved each step, when, and what they said.' })}
     ${paymentCard(r)}
     ${card('Work description', `<p style="margin:0">${esc(r.description || 'No description given.')}</p>${r.amc ? `<div class="message" style="margin-top:12px"><b class="small">Maintenance contract (AMC)</b><span class="small">${r.amc.freq} · ${plural(r.amc.required, 'visit')} each period. When approved it appears under Maintenance contracts and Passes.</span></div>` : ''}`)}
-    ${pass ? card('Pass', `<div class="row between"><span><b>${pass.id}</b> ${passBadge(pass)}</span>${btn('Open pass', { sm: true, go: 'pass-' + pass.id })}</div>`) : ''}
-    ${insp ? card('Final inspection', `<div class="row between"><span><b>${insp.id}</b> · ${badge(insp.status === 'closed' ? 'Closed · ' + insp.outcome : insp.status === 'scheduled' ? 'Scheduled' : 'Requested', insp.status === 'closed' ? 'ok' : 'info')}</span>${btn('Open inspection', { sm: true, go: 'inspection-' + insp.id })}</div>`) : ''}
+    ${pass && !inPass ? card('Pass', `<div class="row between"><span><b>${pass.id}</b> ${passBadge(pass)}</span>${btn('Open pass', { sm: true, go: 'pass-' + pass.id })}</div>`) : ''}
+    ${insp ? card('Final inspection', `<div class="row between"><span><b>${insp.id}</b> · ${badge(...insBadge(insp))}</span>${btn('Open inspection', { sm: true, go: 'inspection-' + insp.id })}</div>`) : ''}
   </div>`;
 }
 
@@ -116,7 +116,7 @@ function decisionPanel(r) {
   }
   if (r.status !== 'review') {
     const last = r.history.at(-1);
-    return card('Decision', `<div class="stack">${reqBadge(r)}${last ? `<p class="small muted" style="margin:0">${esc(last.action)} · ${esc(last.actor)} · ${fmtDT(last.ts)}</p>${last.note ? `<p class="small" style="margin:0">${esc(last.note)}</p>` : ''}` : ''}${pass ? `<div class="decision-actions">${btn('View pass', { v: 'primary', go: 'pass-' + pass.id })}${r.status === 'approved' && canComplete() && !pass.completed ? btn('Mark as completed', { icon: 'check', act: 'markDone', id: pass.id }) : ''}</div>` : ''}</div>`, { cls: 'decision' });
+    return card('Decision', `<div class="stack">${reqBadge(r)}${last ? `<p class="small muted" style="margin:0">${esc(last.action)} · ${esc(last.actor)} · ${fmtDT(last.ts)}</p>${last.note ? `<p class="small" style="margin:0">${esc(last.note)}</p>` : ''}` : ''}${pass ? `<div class="decision-actions">${btn('View pass', { v: 'primary', go: 'pass-' + pass.id })}${canMarkDone(pass) ? btn('Mark as completed', { icon: 'check', act: 'markDone', id: pass.id }) : ''}</div>` : ''}</div>`, { cls: 'decision' });
   }
   const mine = canDecide(r), force = canForce(r);
   if (!mine && !force) return card('Waiting for another step', `<div class="stack"><p class="muted small" style="margin:0">This request is with <b>${esc(stageName(st))}</b>. ${isReviewer() ? 'Your account can view it but not decide.' : 'You can read everything, but only that step can decide.'}</p>${wfStepper(r)}</div>`, { cls: 'decision' });
@@ -139,7 +139,7 @@ function pReview(id) {
   const tabs = [['overview', 'Overview'], ['documents', 'Documents', r.docs.length], ['people', 'People', r.people.length + (r.extraPeople || []).length], ['company', 'Company'], ['site', 'Vehicles & materials'], ['terms', 'Signed terms'], ['history', 'History', r.history.length]];
   const body = { overview: tabOverview, documents: tabDocuments, people: tabPeople, company: tabCompany, site: tabSite, terms: tabTerms, history: tabHistory }[tab](r);
   const ch = r.status === 'changes' ? r.history.filter(h => /changes/i.test(h.action)).at(-1) : null;
-  return `${pageHead(`${esc(r.title)} ${reqBadge(r)}`, `<span class="id">${r.id}</span> · ${esc(ptype(r.type).name)} · submitted ${fmtDT(r.submitted)}${r.status === 'review' ? ' · ' + ageChip(age(r), true) : ''}`, '', [[isReviewer() ? 'Passes' : 'Review queue', isReviewer() ? 'passes' : 'queue'], [r.id]])}
+  return `${pageHead(`${esc(r.title)} ${reqBadge(r)}`, `<span class="id">${r.id}</span> · ${esc(ptype(r.type).name)} · submitted ${fmtDT(r.submitted)}${r.status === 'review' ? ' · ' + ageChip(age(r), true) : ''}`, '', [[isReviewer() ? 'Passes' : 'Pending approval', isReviewer() ? 'passes' : 'queue'], [r.id]])}
   <div class="review"><div class="stack-lg">
     ${ch ? alertBox('warn', 'Waiting for the contractor', esc(ch.note || 'Changes were requested.')) : ''}
     ${r.status === 'payment' ? alertBox('warn', 'Waiting for payment', `All approvals are done. ${money(feeFor(r).total)} is due before the pass and QR codes are issued.`) : ''}
@@ -215,9 +215,10 @@ Object.assign(ACT, {
   invoiceOpen(t) { ui.modal = { type: 'invoice', data: { id: t.dataset.id } }; render(); },
   /* completion */
   markDone(t) {
-    const p = byId(S.passes, t.dataset.id), r = p.requestId && byId(S.requests, p.requestId), insp = r && closureOf(r);
-    openConfirm({ title: `Mark ${p.id} as completed?`, message: insp ? 'The work is finished. It moves to Final inspections so it can be closed.' : 'The work is finished and the request is closed. This pass stops working.', confirmText: 'Mark as completed', tone: 'ok', icon: 'check',
-      onConfirm: () => { p.completed = { on: nowISO(), by: me().name }; if (r) { if (insp) { r.status = 'inspection'; S.inspections.unshift({ id: 'FI-' + (200 + S.inspections.length + 1), requestId: r.id, status: 'requested', requested: nowISO(), preferred: addDays(TODAY, 1), time: '10:00', notes: `Marked as completed by ${me().name}.`, photos: 0 }); r.history.push(H(nowISO(), me().name, 'Marked as completed', 'Sent to final inspection.')); } else { r.status = 'completed'; r.history.push(H(nowISO(), me().name, 'Marked as completed')); } } persist(); toast(insp ? 'Marked as completed. It is now in Final inspections.' : 'Marked as completed.'); } });
+    const p = byId(S.passes, t.dataset.id); if (!canMarkDone(p)) return;
+    const r = p.requestId && byId(S.requests, p.requestId), insp = r && closureOf(r);
+    openConfirm({ title: `Mark ${p.id} as completed?`, message: insp ? 'The work is finished. It goes to Final inspections, where the closing department checks it and closes it.' : 'The work is finished and the request is closed. This pass stops working.', confirmText: 'Mark as completed', tone: 'ok', icon: 'check',
+      onConfirm: () => { p.completed = { on: nowISO(), by: me().name }; if (r) { if (insp) { r.status = 'inspection'; S.inspections.unshift({ id: 'FI-' + (200 + S.inspections.length + 1), requestId: r.id, status: 'pending', requested: nowISO(), notes: `Marked as completed by ${me().name}.`, photos: 0, rounds: [] }); r.history.push(H(nowISO(), me().name, 'Marked as completed', 'Sent to final inspection.')); } else { r.status = 'completed'; r.history.push(H(nowISO(), me().name, 'Marked as completed')); } } persist(); toast(insp ? 'Marked as completed. It is now in Final inspections.' : 'Marked as completed.'); } });
   },
 });
 

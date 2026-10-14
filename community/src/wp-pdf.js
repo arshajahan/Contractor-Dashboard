@@ -40,18 +40,45 @@ function approvalRows(r) {
   r.history.filter(h => /Requested changes|Rejected|Payment received|Worker revoked|Marked as completed/.test(h.action)).forEach(h => out.push([h.action, h.actor, fmtDT(h.ts), h.note || '-']));
   return out;
 }
+function requestSections(w, r) {
+  const c = contractor(r.contractor), t = ptype(r.type);
+  w.h('Request'); w.kv([['Request', `${r.id}  |  ${t.name}`], ['Work', r.title], ['Contractor', c.name], ['Site contact', `${r.contact}, ${r.phone}`], ['Location', `${r.unit}, ${prop(r.property).name}`], ['Work dates', `${range(r.from, r.to)}, ${r.hours}`], ['Submitted', fmtDT(r.submitted)]]);
+  if (r.description) { w.gap(4); w.text(r.description, { size: 9.5 }); }
+  if (r.amc) { w.gap(4); w.text(`Maintenance contract (AMC): ${r.amc.freq}, ${plural(r.amc.required, 'visit')} each period.`, { size: 9.5, bold: true }); }
+  w.h('Approvals'); w.table(['Department and level', 'Approved by', 'Date and time', 'Comment'], approvalRows(r), [0.24, 0.22, 0.2, 0.34]);
+  w.h(`Documents attached (${r.docs.length})`); if (r.docs.length) w.table(['Document', 'File', 'Valid until'], r.docs.map(d => [d.label, d.file, d.noExpiry ? 'No expiry' : fmt(d.expiry)]), [0.38, 0.38, 0.24]); else w.text('None.', { size: 9.5 });
+  w.h(`Workers (${r.people.length + (r.extraPeople || []).length})`);
+  w.table(['Name', 'Role', 'ID', 'ID valid until'], [...r.people.map(person).map(x => [x.name, x.role, `${x.idType} ${x.idNo}`, fmt(x.idExpiry)]), ...(r.extraPeople || []).map(x => { const q = person(x.pid); return [q.name + ' (added later)', q.role, `${q.idType} ${q.idNo}`, x.revoked ? 'REVOKED' : fmt(q.idExpiry)]; })], [0.26, 0.22, 0.34, 0.18]);
+  w.h('Company'); w.kv([['Company', c.name], ['Contact', `${c.contact}, ${c.email}`], ['Phone', c.phone || '-'], ['Tax registration', c.trn || '-'], ['Trade licence', `${c.licence.no || '-'}${c.licence.expiry ? ', valid to ' + fmt(c.licence.expiry) : ''}`]]);
+  w.h(`Vehicles (${r.vehicles.length})`); if (r.vehicles.length) w.table(['Plate', 'Type', 'Make', 'Weight', 'Trips'], r.vehicles.map(v => [v.plate, v.type, v.make || '-', v.tons ? v.tons + ' t' : '-', String(v.trips || 1)]), [0.26, 0.16, 0.24, 0.17, 0.17]); else w.text('None.', { size: 9.5 });
+  w.h(`Materials (${r.materials.length})`); if (r.materials.length) w.table(['Item', 'Quantity'], r.materials.map(m => [m.name, `${m.qty} ${m.unit}`]), [0.7, 0.3]); else w.text('None.', { size: 9.5 });
+  if (r.terms) { w.h('Signed terms'); w.kv([['Document', `${r.terms.name}, version ${r.terms.version}`], ['Signed by', `${r.terms.signedBy}, ${r.terms.position}`], ['Signed', fmtDT(r.terms.signedAt)], ['Confirmations', `${r.terms.ticked} of ${r.terms.of} ticked`]]); }
+  const pay = payOf(r); if (pay) { w.h('Payment'); w.kv([['Invoice', pay.id], ['Amount', money(pay.amount)], ['Paid by', `${payLabel(pay.method)}, ${fmtDT(pay.ts)}`]]); }
+  const fi = S.inspections.find(x => x.requestId === r.id);
+  if (fi) { w.h('Final inspection'); w.kv([['Status', insBadge(fi)[0]], ['Marked completed', fmtDT(fi.requested)]]); fi.rounds.forEach(x => w.text(`${DEC[x.decision][0]} | ${x.by} | ${fmtDT(x.ts)}: ${x.comment}${x.files.length ? ' (Attached: ' + x.files.join(', ') + ')' : ''}`, { size: 9 })); if (fi.remark) { w.gap(4); w.text(`Closing remark: ${fi.remark}`, { size: 9.5, bold: true }); } }
+  w.h('History'); w.table(['When', 'By', 'What'], r.history.map(h => [fmtDT(h.ts), h.actor, h.action + (h.note ? ': ' + h.note : '')]), [0.2, 0.22, 0.58]);
+}
 async function buildPassPdf(p) {
-  const w = await newPdf(), r = p.requestId && byId(S.requests, p.requestId), pay = r && payOf(r);
+  const w = await newPdf(), r = p.requestId && byId(S.requests, p.requestId);
   w.text(S.community.name, { size: 18, bold: true }); w.text(`${S.community.area}  |  Work permit pass`, { size: 10, color: PDFLib.rgb(0.43, 0.48, 0.55) });
   w.qr(p.id, w.W - w.m - 92, w.H - w.m - 92, 92); w.gap(6);
   w.text(p.title, { size: 15, bold: true, maxW: 380 }); w.text(`${p.id}  |  ${PASS[passState(p)][0]}`, { size: 11 });
   w.y = Math.min(w.y, w.H - w.m - 104); w.gap(10);
   w.h('Pass details');
-  w.kv([['Holder', holderName(p)], ['Permit type', r ? ptype(r.type).name : (p.kind === 'visitor' ? 'Visitor pass' : 'Manual pass')], ['Location', `${p.unit}, ${prop(p.property).name}`], ['Valid', range(p.from, p.to)], ['Work hours', r ? r.hours : '-'], ['Issued', `${fmtDT(p.issued)} by ${p.issuedBy}`]]);
-  w.h(`People allowed in (${passPeople(p).length})`); passPeople(p).forEach(x => w.text(`${x.name}  -  ${x.sub}`, { size: 9.5 }));
-  if (p.vehicles && p.vehicles.length) { w.h('Vehicles'); p.vehicles.forEach(v => w.text(`${v.plate}  -  ${v.type}`, { size: 9.5 })); }
-  if (r) { w.h('Approvals'); w.table(['Department and level', 'Approved by', 'Date and time', 'Comment'], approvalRows(r), [0.24, 0.22, 0.2, 0.34]); }
-  if (pay) { w.h('Payment'); w.kv([['Invoice', pay.id], ['Amount', money(pay.amount)], ['Paid by', `${payLabel(pay.method)}, ${fmtDT(pay.ts)}`]]); }
+  w.kv([['Holder', holderName(p)], ['Permit type', r ? ptype(r.type).name : (p.kind === 'visitor' ? 'Visitor pass' : 'Manual pass')], ['Location', `${p.unit}, ${prop(p.property).name}`], ['Valid', range(p.from, p.to)], ['Work hours', r ? r.hours : '-'], ['Issued', `${fmtDT(p.issued)} by ${p.issuedBy}`], ...(p.completed ? [['Completed', `${fmtDT(p.completed.on)} by ${p.completed.by}`]] : [])]);
+  if (r) requestSections(w, r);
+  else { w.h(`People allowed in (${passPeople(p).length})`); passPeople(p).forEach(x => w.text(`${x.name}  -  ${x.sub}`, { size: 9.5 })); if (p.vehicles && p.vehicles.length) { w.h('Vehicles'); p.vehicles.forEach(v => w.text(`${v.plate}  -  ${v.type}`, { size: 9.5 })); } w.h('Approval'); w.text(`Issued directly by ${p.issuedBy} on ${fmtDT(p.issued)}. There was no request to approve.`, { size: 9.5 }); }
+  w.gap(14); w.text(`Generated ${fmt(TODAY)}. This is a design preview with sample data.`, { size: 8, color: PDFLib.rgb(0.5, 0.55, 0.6) });
+  return w.doc.save();
+}
+async function buildReportPdf(i) {
+  const w = await newPdf(), r = byId(S.requests, i.requestId), pass = r.passId && byId(S.passes, r.passId);
+  w.text(S.community.name, { size: 18, bold: true }); w.text(`${S.community.area}  |  Work closure report`, { size: 10, color: PDFLib.rgb(0.43, 0.48, 0.55) }); w.gap(8);
+  w.text(r.title, { size: 15, bold: true }); w.text(`${i.id}  |  ${i.outcome === 'Completed' ? 'Closed: completed' : 'Closed: incomplete'}`, { size: 11, bold: true, color: i.outcome === 'Completed' ? PDFLib.rgb(0.07, 0.46, 0.3) : PDFLib.rgb(0.58, 0.34, 0) });
+  w.h('Closing'); w.kv([['Outcome', i.outcome === 'Completed' ? 'Work completed' : 'Closed as incomplete'], ['Closed', `${fmtDT(i.closedOn)} by ${i.closedBy}`], ['Closing remark', i.remark], ['Pass', pass ? pass.id : '-']]);
+  w.h('Contractor completion notes'); w.text(i.notes, { size: 9.5 });
+  w.h('Inspection'); i.rounds.forEach(x => { w.text(`${DEC[x.decision][0]}  |  ${x.by}  |  ${fmtDT(x.ts)}`, { size: 9.5, bold: true }); w.text(x.comment, { size: 9.5 }); if (x.files.length) w.text(`Attached: ${x.files.join(', ')}`, { size: 9, color: PDFLib.rgb(0.43, 0.48, 0.55) }); w.gap(4); });
+  requestSections(w, r);
   w.gap(14); w.text(`Generated ${fmt(TODAY)}. This is a design preview with sample data.`, { size: 8, color: PDFLib.rgb(0.5, 0.55, 0.6) });
   return w.doc.save();
 }
@@ -67,5 +94,6 @@ async function buildInvoicePdf(pay) {
 }
 Object.assign(ACT, {
   passPdf(t) { const p = byId(S.passes, t.dataset.id); buildPassPdf(p).then(b => { saveBytes(b, `${p.id}-permit.pdf`); toast(`${p.id} PDF ready.`); }).catch(e => toast('Could not make the PDF: ' + e.message, { err: true })); },
+  reportPdf(t) { const i = byId(S.inspections, t.dataset.id); buildReportPdf(i).then(b => { saveBytes(b, `${i.id}-closure-report.pdf`); toast(`${i.id} report ready.`); }).catch(e => toast('Could not make the PDF: ' + e.message, { err: true })); },
   invoicePdf(t) { const pay = byId(S.payments, t.dataset.id); buildInvoicePdf(pay).then(b => { saveBytes(b, `${pay.id}.pdf`); toast(`${pay.id} PDF ready.`); }).catch(e => toast('Could not make the PDF: ' + e.message, { err: true })); },
 });

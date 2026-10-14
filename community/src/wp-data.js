@@ -114,11 +114,12 @@ function seedWP() {
     { id: 'PS-3012', requestId: 'BZ-1022', kind: 'work', holder: 'c6', title: 'Kitchen deep clean', property: 'retail', unit: 'Retail R-02', from: '2026-10-10', to: '2026-10-16', people: ['w1'], vehicles: [], issued: '2026-09-19T09:00', issuedBy: 'Sara Lindqvist' },
     { id: 'PS-3013', requestId: 'BZ-1044', kind: 'work', holder: 'c2', title: 'Office furniture delivery', property: 'offices', unit: 'Loading bay', from: '2026-10-09', to: '2026-10-09', people: ['w5'], vehicles: [{ plate: 'Sharjah 3 45821', type: 'Pickup' }], issued: '2026-10-08T11:06', issuedBy: 'Priya Rao' },
   ];
+  const R = (ts, by, decision, comment, files) => ({ ts, by, decision, comment, files: files || [] });
   const inspections = [
-    { id: 'FI-201', requestId: 'BZ-1033', status: 'requested', requested: '2026-10-11T14:20', preferred: '2026-10-14', time: '10:00', notes: 'Work completed and the area has been cleaned. Carpet offcuts removed.', photos: 3 },
-    { id: 'FI-198', requestId: 'BZ-1030', status: 'scheduled', requested: '2026-10-01T10:00', preferred: '2026-10-13', time: '11:00', notes: 'Ceiling tiles replaced and painted.', photos: 2, scheduledFor: '2026-10-13T11:00', scheduledBy: 'Priya Rao' },
-    { id: 'FI-190', requestId: 'BZ-1029', status: 'closed', requested: '2026-09-23T16:00', preferred: '2026-09-24', time: '10:00', notes: 'Valve replaced and tested.', photos: 1, closedOn: '2026-09-24T11:30', closedBy: 'Priya Rao', outcome: 'Passed', report: true },
-    { id: 'FI-171', requestId: 'BZ-1017', status: 'closed', requested: '2026-08-20T17:00', preferred: '2026-08-21', time: '09:00', notes: 'All glass panels installed. Debris removed.', photos: 4, closedOn: '2026-08-21T09:40', closedBy: 'Priya Rao', outcome: 'Passed', report: true },
+    { id: 'FI-201', requestId: 'BZ-1033', status: 'pending', requested: '2026-10-11T14:20', notes: 'Work completed and the area has been cleaned. Carpet offcuts removed.', photos: 3, rounds: [] },
+    { id: 'FI-198', requestId: 'BZ-1030', status: 'waiting', requested: '2026-10-01T10:00', notes: 'Ceiling tiles replaced and painted.', photos: 2, rounds: [R('2026-10-02T09:00', 'Priya Rao', 'not_ready', 'Ceiling tiles near the window are not aligned. Fix and send again.', ['snag-photo-1.jpg'])] },
+    { id: 'FI-190', requestId: 'BZ-1029', status: 'closed', requested: '2026-09-23T16:00', notes: 'Valve replaced and tested.', photos: 1, rounds: [R('2026-09-24T11:30', 'Priya Rao', 'complete', 'Valve replaced and pressure tested. Area is clean.', ['inspection-photo-1.jpg'])], outcome: 'Completed', remark: 'Valve replaced and pressure tested. Area is clean.', closedOn: '2026-09-24T11:30', closedBy: 'Priya Rao' },
+    { id: 'FI-171', requestId: 'BZ-1017', status: 'closed', requested: '2026-08-20T17:00', notes: 'All glass panels installed. Debris removed.', photos: 4, rounds: [R('2026-08-21T09:00', 'Priya Rao', 'not_ready', 'Two panels have scratches. Replace them.', ['scratch-panel-3.jpg']), R('2026-08-21T08:10', 'Karim Aziz (contractor)', 'resubmitted', 'Panels replaced.'), R('2026-08-21T09:40', 'Priya Rao', 'complete', 'All panels are clean and fitted correctly.', ['final-photo-1.jpg', 'final-photo-2.jpg'])], outcome: 'Completed', remark: 'All panels are clean and fitted correctly.', closedOn: '2026-08-21T09:40', closedBy: 'Priya Rao' },
   ];
   const amc = [
     { id: 'a1', requestId: 'BZ-1029', contractor: 'c1', title: 'HVAC servicing', property: 'offices', freq: 'Monthly', required: 2, period: 'Oct 2026', next: '2026-10-20', visits: [{ date: '2026-10-05', by: 'Alex Morgan', pass: 'AMC-2026-10-05' }] },
@@ -167,7 +168,7 @@ function seedWP() {
   return {
     v: 1, community: { id: 'buzzin', name: 'Buzzin community', area: 'Dubai Silicon Oasis', email: 'permits@buzzin-community.example', logo: BUZZIN_LOGO },
     departments: ['Security', 'Operations'],
-    settings: { timezone: 'Asia/Dubai', trn: '100000000001', phone: '+971 4 000 0000', fax: '', supportEmail: 'permits@buzzin-community.example', tolerance: 30, grace: true, graceMinutes: 15, oneTimeApproval: true, approveNewContractors: true,
+    settings: { timezone: 'Asia/Dubai', trn: '100000000001', phone: '+971 4 000 0000', fax: '', supportEmail: 'permits@buzzin-community.example', tolerance: 30, grace: true, graceMinutes: 15, oneTimeApproval: true, finalInspection: true, approveNewContractors: true,
       hideCommunity: true, workersAfterApproval: true, linkReuse: 'reusable', currency: 'AED', restricted: { weekly: ['Friday'], dates: ['2026-10-25', '2026-11-02'] }, workHours: { from: '08:00', to: '18:00' }, provider: 'Not connected in this preview' },
     permitTypes: pt, properties, contractors, people, team, requests, passes, inspections, amc, payments, logs, notifications,
     forms: [{ id: 'frm1', name: 'Contractor terms & community guidelines', fileName: 'buzzin-contractor-terms-v3.pdf', pdf: 'sample', pdfRev: 0, fields: clone(SAMPLE_FIELDS), appliesTo: [...ALL_TYPE_IDS], placement: 'bottom', updated: '2026-09-01',
@@ -237,6 +238,8 @@ const canViewLogs = () => isAdmin() || (isApprover() && !!me().logs) || can('log
 const canCheckout = () => isAdmin() || can('checkout');
 const canComplete = () => isAdmin() || isApprover() || can('complete');
 const closureOf = r => { const t = ptype(r.type); return !!t.closure; };
+/* Mark as completed: only when the community uses final inspections, and only once work has started. */
+const canMarkDone = p => !!S.settings.finalInspection && canComplete() && p.kind === 'work' && ['active', 'expired', 'revoked', 'suspended'].includes(passState(p));
 const closureOK = r => isAdmin() || (r && closureOf(r) && ptype(r.type).closureDepartments.includes(me().dept));
 const visibleRequests = () => S.requests.filter(r => inScope(me(), r));
 const pending = () => visibleRequests().filter(r => r.status === 'review');

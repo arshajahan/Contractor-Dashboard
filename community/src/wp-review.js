@@ -1,4 +1,4 @@
-/* Work permits (shared by Admin and Approver): dashboards, review queue and the review screen. */
+/* Work permits (shared by Admin and Approver): dashboards, pending approval and the review screen. */
 const nowISO = () => { const d = new Date(NOW.getTime() + Math.max(0, Date.now() - (window.__loadedAt || Date.now()))); return iso(d) + 'T' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 const H = (ts, actor, action, note) => ({ ts, actor, action, note: note || '' });
 const firstName = n => String(n).split(' ')[0];
@@ -65,20 +65,20 @@ function pDashboardAdmin() {
   const soon = visibleRequests().filter(r => ['review', 'approved'].includes(r.status) && r.from <= addDays(TODAY, 2) && r.to >= TODAY);
   const soonP = soon.filter(r => r.status === 'review').length, soonA = soon.length - soonP;
   const onSite = onSiteNow(), mv = movementDays(7), today = mv[mv.length - 1];
-  const closing = S.inspections.filter(i => ['requested', 'scheduled'].includes(i.status));
+  const closing = S.inspections.filter(i => ['pending', 'waiting'].includes(i.status));
   const a = ageBuckets(pend), back = backlogByStage(pend), days14 = workDays(14, visibleRequests());
   const decide = pend.slice().sort((x, y) => age(y) - age(x)).slice(0, 5);
   const exp = expiringContractors();
   const feed = S.requests.flatMap(r => r.history.filter(h => /Approved|Rejected|Requested changes|Work closed|Final/.test(h.action)).map(h => ({ ...h, r }))).sort((x, y) => y.ts.localeCompare(x.ts)).slice(0, 6);
   const amcRows = S.amc.map(x => { const done = x.visits.length; return { x, done, ok: done >= x.required }; });
-  return `${pageHead(`Good morning, ${esc(firstName(me().name))}`, `Monday 12 October · ${esc(S.community.name)} · Dubai time`, btn('Invite a contractor', { icon: 'mail', act: 'invite' }) + btn('Issue a pass', { icon: 'plus', go: 'issue-pass' }) + btn('Review queue', { v: 'primary', go: 'queue', iconR: 'arrowR' }))}
+  return `${pageHead(`Good morning, ${esc(firstName(me().name))}`, `Monday 12 October · ${esc(S.community.name)} · Dubai time`, btn('Invite a contractor', { icon: 'mail', act: 'invite' }) + btn('Issue a pass', { icon: 'plus', go: 'issue-pass' }) + btn('Pending approval', { v: 'primary', go: 'queue', iconR: 'arrowR' }))}
   ${overstayAlert(overstayers())}
   ${over48.length ? alertBox('warn', `${plural(over48.length, 'request has', 'requests have')} waited over 48 hours`, `${esc(over48.map(r => r.title).slice(0, 2).join(' and '))}${over48.length > 2 ? ' and more' : ''} should be looked at first.`, btn('Open oldest', { sm: true, go: 'review-' + over48.sort((x, y) => age(y) - age(x))[0].id })) : ''}
   <div class="kpis">
     ${kpi({ label: 'Awaiting approval', value: pend.length, icon: 'inbox', tone: 'warn', go: 'queue', sub: over24.length ? `${over24.length} waiting over 24 h` : 'None waiting over 24 h', subTone: over24.length ? 'warn' : '' })}
     ${kpi({ label: 'Payment pending', value: payPending().length, icon: 'receipt', tone: 'warn', go: 'queue', act: 'payTab', sub: payPending().length ? `${money(sum(payPending().map(r => feeFor(r).total)))} to collect` : 'Nothing to collect' })}
     ${kpi({ label: 'People on site now', value: onSite.length, icon: 'users', tone: 'ok', go: 'logs', sub: `${overstayers().length ? overstayers().length + ' past time limit · ' : ''}${today.in} in · ${today.out} out today`, spark: mv.map(m => m.in) })}
-    ${kpi({ label: 'Waiting for closure', value: closing.length, icon: 'clipboard', tone: 'neutral', go: 'inspections', sub: `${closing.filter(i => i.status === 'requested').length} to schedule · ${closing.filter(i => i.status === 'scheduled').length} scheduled` })}
+    ${kpi({ label: 'Waiting for closure', value: closing.length, icon: 'clipboard', tone: 'neutral', go: S.settings.finalInspection ? 'inspections' : null, sub: `${closing.filter(i => i.status === 'pending').length} to review · ${closing.filter(i => i.status === 'waiting').length} waiting for contractor` })}
   </div>
   <div class="grid-main">
     ${card('Needs a decision', reqTable(decide, { emptyTitle: 'You’re all caught up', emptyText: 'No requests are waiting.' }), { raw: true, sub: 'Oldest first. Open a request to check it and decide.', action: btn('View all', { v: 'ghost', sm: true, go: 'queue', iconR: 'arrowR' }) })}
@@ -122,7 +122,7 @@ function pDashboardApprover() {
   </div>`;
 }
 
-/* ---------- Review queue ---------- */
+/* ---------- Pending approval ---------- */
 function pQueue() {
   const admin = isAdmin(), vis = visibleRequests();
   const tabs = admin
@@ -137,7 +137,7 @@ function pQueue() {
   const doneRows = `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Request</th><th>Contractor</th><th>Outcome</th><th>Decided</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${list.map(r => { const h = r.history.at(-1); return `<tr class="clickable" data-go="review-${r.id}"><td>${reqTitleCell(r)}</td><td data-m="sub">${esc(contractor(r.contractor).name)}</td><td data-m="side">${reqBadge(r)}</td><td data-m="hide"><div>${esc(h.actor)}</div><div class="mini">${fmtDT(h.ts)}</div></td><td class="t-actions">${btn('View', { v: 'ghost', sm: true, go: 'review-' + r.id })}</td></tr>`; }).join('')}</tbody></table></div>`;
   const payRows = `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Request</th><th>Contractor</th><th>Amount</th><th>Fee</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${list.map(r => { const f = feeFor(r); return `<tr class="clickable" data-go="review-${r.id}"><td>${reqTitleCell(r)}</td><td data-m="sub">${esc(contractor(r.contractor).name)}</td><td data-m="side" class="num"><b>${money(f.total)}</b></td><td data-m="hide">${esc(f.lines.map(l => l[0]).join('; '))}</td><td class="t-actions">${isAdmin() ? btn('Record payment', { sm: true, v: 'primary', act: 'payOpen', id: r.id }) : btn('View', { sm: true, v: 'ghost', go: 'review-' + r.id })}</td></tr>`; }).join('')}</tbody></table></div>`;
   const chRows = `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Request</th><th>Contractor</th><th>Asked for</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${list.map(r => { const h = r.history.filter(x => /changes/.test(x.action)).at(-1) || r.history.at(-1); return `<tr class="clickable" data-go="review-${r.id}"><td>${reqTitleCell(r)}</td><td data-m="sub">${esc(contractor(r.contractor).name)}</td><td data-m="hide"><div class="clamp-2">${esc(h.note)}</div><div class="mini">${fmtDT(h.ts)} · ${esc(h.actor)}</div></td><td class="t-actions">${btn('View', { v: 'ghost', sm: true, go: 'review-' + r.id })}</td></tr>`; }).join('')}</tbody></table></div>`;
-  return `${pageHead(admin ? 'Review queue' : 'My review queue', admin ? 'Pending work permit requests across every property.' : `Requests at ${esc(me().dept)} · Level ${me().level} for your properties.`, admin ? btn('Issue a pass', { icon: 'plus', go: 'issue-pass' }) : '')}
+  return `${pageHead('Pending approval', admin ? 'Pending work permit requests across every property.' : `Requests at ${esc(me().dept)} · Level ${me().level} for your properties.`, admin ? btn('Issue a pass', { icon: 'plus', go: 'issue-pass' }) : '')}
   <section class="card">${tabsBar('queue', tabs, tab)}
     <div class="filters-row"><div class="search">${ic('search')}<input class="input" data-search="queue" placeholder="Search by request, contractor or unit" value="${esc(ui.search.queue || '')}" aria-label="Search requests"></div>
       <label class="sr" for="qprop">Property</label><select class="select" id="qprop" data-filter="qprop"><option value="">All properties</option>${S.properties.filter(p => inScope(me(), { property: p.id })).map(p => `<option value="${p.id}" ${f.qprop === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>

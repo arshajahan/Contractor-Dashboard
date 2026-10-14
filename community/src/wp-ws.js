@@ -12,10 +12,10 @@ const wpSearch = q => {
 const wpNav = (extra) => [
   { group: '', items: [{ go: 'dashboard', icon: 'home', label: 'Dashboard' }] },
   { group: 'Work permits', items: [
-    { go: 'queue', icon: 'inbox', label: isAdmin() ? 'Review queue' : 'My queue', show: () => !isReviewer(), badge: () => isAdmin() ? pending().length : myQueue().length },
+    { go: 'queue', icon: 'inbox', label: 'Pending approval', show: () => !isReviewer(), badge: () => isAdmin() ? pending().length : myQueue().length },
     { go: 'calendar', icon: 'calendar', label: 'Calendar' },
     { go: 'passes', icon: 'ticket', label: 'Passes', match: /^passes|^pass-|^issue-pass/ },
-    { go: 'inspections', icon: 'clipboard', label: 'Final inspections', match: /^inspection/, badge: () => isReviewer() ? 0 : S.inspections.filter(i => i.status === 'requested' && inScope(me(), byId(S.requests, i.requestId))).length },
+    { go: 'inspections', icon: 'clipboard', label: 'Final inspections', match: /^inspection/, show: () => !!S.settings.finalInspection, badge: () => isReviewer() ? 0 : S.inspections.filter(i => i.status === 'pending' && inScope(me(), byId(S.requests, i.requestId))).length },
     { go: 'logs', icon: 'list', label: 'Access logs', show: canViewLogs }] },
   ...(extra || [])];
 const adminExtra = () => [
@@ -28,7 +28,7 @@ const adminExtra = () => [
   { group: 'Administration', items: [
     { go: 'team', icon: 'users', label: 'Team & roles' },
     { go: 'settings', icon: 'gear', label: 'Settings', match: /^settings|^ptype-|^terms-/ }] }];
-const titleMap = r => ({ dashboard: 'Dashboard', queue: 'Review queue', calendar: 'Calendar', passes: 'Passes', inspections: 'Final inspections', logs: 'Access logs', contractors: 'Contractors', amc: 'Maintenance contracts', properties: 'Properties', reports: 'Reports & insights', team: 'Team & roles', payments: 'Payments', settings: 'Settings', profile: 'My profile', 'issue-pass': 'Issue a pass' }[r] || (r.startsWith('review-') ? r.slice(7) : r.startsWith('settings') ? 'Settings' : r.startsWith('pass-') ? r.slice(5) : r.startsWith('contractor-') ? 'Contractor' : 'Buzzin'));
+const titleMap = r => ({ dashboard: 'Dashboard', queue: 'Pending approval', calendar: 'Calendar', passes: 'Passes', inspections: 'Final inspections', logs: 'Access logs', contractors: 'Contractors', amc: 'Maintenance contracts', properties: 'Properties', reports: 'Reports & insights', team: 'Team & roles', payments: 'Payments', settings: 'Settings', profile: 'My profile', 'issue-pass': 'Issue a pass' }[r] || (r.startsWith('review-') ? r.slice(7) : r.startsWith('settings') ? 'Settings' : r.startsWith('pass-') ? r.slice(5) : r.startsWith('contractor-') ? 'Contractor' : 'Buzzin'));
 const wpBase = {
   theme: 'ws-permits', home: 'dashboard', searchPh: 'Search requests, passes or companies', wide: false, search: wpSearch, titleFor: titleMap,
   userName: () => me().name, userSub: () => me().title,
@@ -46,7 +46,7 @@ const CFG_APPROVER = {
   ...wpBase,
   id: 'approver', title: 'Work permits', roleLabel: 'Approver', userId: 'u2', docTitle: 'Buzzin · Approver', homeLabel: 'Dashboard',
   get nav() { return wpNav(); },
-  bottom: [['dashboard', 'Home', 'home'], ['queue', 'My queue', 'inbox'], ['calendar', 'Calendar', 'calendar'], ['passes', 'Passes', 'ticket', /^passes|^pass-/]],
+  bottom: [['dashboard', 'Home', 'home'], ['queue', 'Pending', 'inbox'], ['calendar', 'Calendar', 'calendar'], ['passes', 'Passes', 'ticket', /^passes|^pass-/]],
   scopeCard: () => { const u = me(); return `<div class="side-scope"><b>${esc(u.dept)} · Level ${u.level}</b><div class="row"><span class="tagline">${ic('userCheck')} Approver</span></div><span>${esc(u.properties.map(p => prop(p).name).join(', '))}</span></div>`; },
   notifFilter: n => /^(review|inspection)-/.test(n.go),
 };
