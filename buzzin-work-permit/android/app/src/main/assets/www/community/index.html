@@ -1872,11 +1872,12 @@ function seedWP() {
     { id: 'PS-3012', requestId: 'BZ-1022', kind: 'work', holder: 'c6', title: 'Kitchen deep clean', property: 'retail', unit: 'Retail R-02', from: '2026-10-10', to: '2026-10-16', people: ['w1'], vehicles: [], issued: '2026-09-19T09:00', issuedBy: 'Sara Lindqvist' },
     { id: 'PS-3013', requestId: 'BZ-1044', kind: 'work', holder: 'c2', title: 'Office furniture delivery', property: 'offices', unit: 'Loading bay', from: '2026-10-09', to: '2026-10-09', people: ['w5'], vehicles: [{ plate: 'Sharjah 3 45821', type: 'Pickup' }], issued: '2026-10-08T11:06', issuedBy: 'Priya Rao' },
   ];
+  const R = (ts, by, decision, comment, files) => ({ ts, by, decision, comment, files: files || [] });
   const inspections = [
-    { id: 'FI-201', requestId: 'BZ-1033', status: 'requested', requested: '2026-10-11T14:20', preferred: '2026-10-14', time: '10:00', notes: 'Work completed and the area has been cleaned. Carpet offcuts removed.', photos: 3 },
-    { id: 'FI-198', requestId: 'BZ-1030', status: 'scheduled', requested: '2026-10-01T10:00', preferred: '2026-10-13', time: '11:00', notes: 'Ceiling tiles replaced and painted.', photos: 2, scheduledFor: '2026-10-13T11:00', scheduledBy: 'Priya Rao' },
-    { id: 'FI-190', requestId: 'BZ-1029', status: 'closed', requested: '2026-09-23T16:00', preferred: '2026-09-24', time: '10:00', notes: 'Valve replaced and tested.', photos: 1, closedOn: '2026-09-24T11:30', closedBy: 'Priya Rao', outcome: 'Passed', report: true },
-    { id: 'FI-171', requestId: 'BZ-1017', status: 'closed', requested: '2026-08-20T17:00', preferred: '2026-08-21', time: '09:00', notes: 'All glass panels installed. Debris removed.', photos: 4, closedOn: '2026-08-21T09:40', closedBy: 'Priya Rao', outcome: 'Passed', report: true },
+    { id: 'FI-201', requestId: 'BZ-1033', status: 'pending', requested: '2026-10-11T14:20', notes: 'Work completed and the area has been cleaned. Carpet offcuts removed.', photos: 3, rounds: [] },
+    { id: 'FI-198', requestId: 'BZ-1030', status: 'waiting', requested: '2026-10-01T10:00', notes: 'Ceiling tiles replaced and painted.', photos: 2, rounds: [R('2026-10-02T09:00', 'Priya Rao', 'not_ready', 'Ceiling tiles near the window are not aligned. Fix and send again.', ['snag-photo-1.jpg'])] },
+    { id: 'FI-190', requestId: 'BZ-1029', status: 'closed', requested: '2026-09-23T16:00', notes: 'Valve replaced and tested.', photos: 1, rounds: [R('2026-09-24T11:30', 'Priya Rao', 'complete', 'Valve replaced and pressure tested. Area is clean.', ['inspection-photo-1.jpg'])], outcome: 'Completed', remark: 'Valve replaced and pressure tested. Area is clean.', closedOn: '2026-09-24T11:30', closedBy: 'Priya Rao' },
+    { id: 'FI-171', requestId: 'BZ-1017', status: 'closed', requested: '2026-08-20T17:00', notes: 'All glass panels installed. Debris removed.', photos: 4, rounds: [R('2026-08-21T09:00', 'Priya Rao', 'not_ready', 'Two panels have scratches. Replace them.', ['scratch-panel-3.jpg']), R('2026-08-21T08:10', 'Karim Aziz (contractor)', 'resubmitted', 'Panels replaced.'), R('2026-08-21T09:40', 'Priya Rao', 'complete', 'All panels are clean and fitted correctly.', ['final-photo-1.jpg', 'final-photo-2.jpg'])], outcome: 'Completed', remark: 'All panels are clean and fitted correctly.', closedOn: '2026-08-21T09:40', closedBy: 'Priya Rao' },
   ];
   const amc = [
     { id: 'a1', requestId: 'BZ-1029', contractor: 'c1', title: 'HVAC servicing', property: 'offices', freq: 'Monthly', required: 2, period: 'Oct 2026', next: '2026-10-20', visits: [{ date: '2026-10-05', by: 'Alex Morgan', pass: 'AMC-2026-10-05' }] },
@@ -1925,7 +1926,7 @@ function seedWP() {
   return {
     v: 1, community: { id: 'buzzin', name: 'Buzzin community', area: 'Dubai Silicon Oasis', email: 'permits@buzzin-community.example', logo: BUZZIN_LOGO },
     departments: ['Security', 'Operations'],
-    settings: { timezone: 'Asia/Dubai', trn: '100000000001', phone: '+971 4 000 0000', fax: '', supportEmail: 'permits@buzzin-community.example', tolerance: 30, grace: true, graceMinutes: 15, oneTimeApproval: true, approveNewContractors: true,
+    settings: { timezone: 'Asia/Dubai', trn: '100000000001', phone: '+971 4 000 0000', fax: '', supportEmail: 'permits@buzzin-community.example', tolerance: 30, grace: true, graceMinutes: 15, oneTimeApproval: true, finalInspection: true, approveNewContractors: true,
       hideCommunity: true, workersAfterApproval: true, linkReuse: 'reusable', currency: 'AED', restricted: { weekly: ['Friday'], dates: ['2026-10-25', '2026-11-02'] }, workHours: { from: '08:00', to: '18:00' }, provider: 'Not connected in this preview' },
     permitTypes: pt, properties, contractors, people, team, requests, passes, inspections, amc, payments, logs, notifications,
     forms: [{ id: 'frm1', name: 'Contractor terms & community guidelines', fileName: 'buzzin-contractor-terms-v3.pdf', pdf: 'sample', pdfRev: 0, fields: clone(SAMPLE_FIELDS), appliesTo: [...ALL_TYPE_IDS], placement: 'bottom', updated: '2026-09-01',
@@ -1995,6 +1996,8 @@ const canViewLogs = () => isAdmin() || (isApprover() && !!me().logs) || can('log
 const canCheckout = () => isAdmin() || can('checkout');
 const canComplete = () => isAdmin() || isApprover() || can('complete');
 const closureOf = r => { const t = ptype(r.type); return !!t.closure; };
+/* Mark as completed: only when the community uses final inspections, and only once work has started. */
+const canMarkDone = p => !!S.settings.finalInspection && canComplete() && p.kind === 'work' && ['active', 'expired', 'revoked', 'suspended'].includes(passState(p));
 const closureOK = r => isAdmin() || (r && closureOf(r) && ptype(r.type).closureDepartments.includes(me().dept));
 const visibleRequests = () => S.requests.filter(r => inScope(me(), r));
 const pending = () => visibleRequests().filter(r => r.status === 'review');
@@ -2272,7 +2275,7 @@ function startApp(config, seedFn, validFn, key) {
   }
 }
 
-/* Work permits (shared by Admin and Approver): dashboards, review queue and the review screen. */
+/* Work permits (shared by Admin and Approver): dashboards, pending approval and the review screen. */
 const nowISO = () => { const d = new Date(NOW.getTime() + Math.max(0, Date.now() - (window.__loadedAt || Date.now()))); return iso(d) + 'T' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 const H = (ts, actor, action, note) => ({ ts, actor, action, note: note || '' });
 const firstName = n => String(n).split(' ')[0];
@@ -2339,20 +2342,20 @@ function pDashboardAdmin() {
   const soon = visibleRequests().filter(r => ['review', 'approved'].includes(r.status) && r.from <= addDays(TODAY, 2) && r.to >= TODAY);
   const soonP = soon.filter(r => r.status === 'review').length, soonA = soon.length - soonP;
   const onSite = onSiteNow(), mv = movementDays(7), today = mv[mv.length - 1];
-  const closing = S.inspections.filter(i => ['requested', 'scheduled'].includes(i.status));
+  const closing = S.inspections.filter(i => ['pending', 'waiting'].includes(i.status));
   const a = ageBuckets(pend), back = backlogByStage(pend), days14 = workDays(14, visibleRequests());
   const decide = pend.slice().sort((x, y) => age(y) - age(x)).slice(0, 5);
   const exp = expiringContractors();
   const feed = S.requests.flatMap(r => r.history.filter(h => /Approved|Rejected|Requested changes|Work closed|Final/.test(h.action)).map(h => ({ ...h, r }))).sort((x, y) => y.ts.localeCompare(x.ts)).slice(0, 6);
   const amcRows = S.amc.map(x => { const done = x.visits.length; return { x, done, ok: done >= x.required }; });
-  return `${pageHead(`Good morning, ${esc(firstName(me().name))}`, `Monday 12 October · ${esc(S.community.name)} · Dubai time`, btn('Invite a contractor', { icon: 'mail', act: 'invite' }) + btn('Issue a pass', { icon: 'plus', go: 'issue-pass' }) + btn('Review queue', { v: 'primary', go: 'queue', iconR: 'arrowR' }))}
+  return `${pageHead(`Good morning, ${esc(firstName(me().name))}`, `Monday 12 October · ${esc(S.community.name)} · Dubai time`, btn('Invite a contractor', { icon: 'mail', act: 'invite' }) + btn('Issue a pass', { icon: 'plus', go: 'issue-pass' }) + btn('Pending approval', { v: 'primary', go: 'queue', iconR: 'arrowR' }))}
   ${overstayAlert(overstayers())}
   ${over48.length ? alertBox('warn', `${plural(over48.length, 'request has', 'requests have')} waited over 48 hours`, `${esc(over48.map(r => r.title).slice(0, 2).join(' and '))}${over48.length > 2 ? ' and more' : ''} should be looked at first.`, btn('Open oldest', { sm: true, go: 'review-' + over48.sort((x, y) => age(y) - age(x))[0].id })) : ''}
   <div class="kpis">
     ${kpi({ label: 'Awaiting approval', value: pend.length, icon: 'inbox', tone: 'warn', go: 'queue', sub: over24.length ? `${over24.length} waiting over 24 h` : 'None waiting over 24 h', subTone: over24.length ? 'warn' : '' })}
     ${kpi({ label: 'Payment pending', value: payPending().length, icon: 'receipt', tone: 'warn', go: 'queue', act: 'payTab', sub: payPending().length ? `${money(sum(payPending().map(r => feeFor(r).total)))} to collect` : 'Nothing to collect' })}
     ${kpi({ label: 'People on site now', value: onSite.length, icon: 'users', tone: 'ok', go: 'logs', sub: `${overstayers().length ? overstayers().length + ' past time limit · ' : ''}${today.in} in · ${today.out} out today`, spark: mv.map(m => m.in) })}
-    ${kpi({ label: 'Waiting for closure', value: closing.length, icon: 'clipboard', tone: 'neutral', go: 'inspections', sub: `${closing.filter(i => i.status === 'requested').length} to schedule · ${closing.filter(i => i.status === 'scheduled').length} scheduled` })}
+    ${kpi({ label: 'Waiting for closure', value: closing.length, icon: 'clipboard', tone: 'neutral', go: S.settings.finalInspection ? 'inspections' : null, sub: `${closing.filter(i => i.status === 'pending').length} to review · ${closing.filter(i => i.status === 'waiting').length} waiting for contractor` })}
   </div>
   <div class="grid-main">
     ${card('Needs a decision', reqTable(decide, { emptyTitle: 'You’re all caught up', emptyText: 'No requests are waiting.' }), { raw: true, sub: 'Oldest first. Open a request to check it and decide.', action: btn('View all', { v: 'ghost', sm: true, go: 'queue', iconR: 'arrowR' }) })}
@@ -2396,7 +2399,7 @@ function pDashboardApprover() {
   </div>`;
 }
 
-/* ---------- Review queue ---------- */
+/* ---------- Pending approval ---------- */
 function pQueue() {
   const admin = isAdmin(), vis = visibleRequests();
   const tabs = admin
@@ -2411,7 +2414,7 @@ function pQueue() {
   const doneRows = `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Request</th><th>Contractor</th><th>Outcome</th><th>Decided</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${list.map(r => { const h = r.history.at(-1); return `<tr class="clickable" data-go="review-${r.id}"><td>${reqTitleCell(r)}</td><td data-m="sub">${esc(contractor(r.contractor).name)}</td><td data-m="side">${reqBadge(r)}</td><td data-m="hide"><div>${esc(h.actor)}</div><div class="mini">${fmtDT(h.ts)}</div></td><td class="t-actions">${btn('View', { v: 'ghost', sm: true, go: 'review-' + r.id })}</td></tr>`; }).join('')}</tbody></table></div>`;
   const payRows = `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Request</th><th>Contractor</th><th>Amount</th><th>Fee</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${list.map(r => { const f = feeFor(r); return `<tr class="clickable" data-go="review-${r.id}"><td>${reqTitleCell(r)}</td><td data-m="sub">${esc(contractor(r.contractor).name)}</td><td data-m="side" class="num"><b>${money(f.total)}</b></td><td data-m="hide">${esc(f.lines.map(l => l[0]).join('; '))}</td><td class="t-actions">${isAdmin() ? btn('Record payment', { sm: true, v: 'primary', act: 'payOpen', id: r.id }) : btn('View', { sm: true, v: 'ghost', go: 'review-' + r.id })}</td></tr>`; }).join('')}</tbody></table></div>`;
   const chRows = `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Request</th><th>Contractor</th><th>Asked for</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${list.map(r => { const h = r.history.filter(x => /changes/.test(x.action)).at(-1) || r.history.at(-1); return `<tr class="clickable" data-go="review-${r.id}"><td>${reqTitleCell(r)}</td><td data-m="sub">${esc(contractor(r.contractor).name)}</td><td data-m="hide"><div class="clamp-2">${esc(h.note)}</div><div class="mini">${fmtDT(h.ts)} · ${esc(h.actor)}</div></td><td class="t-actions">${btn('View', { v: 'ghost', sm: true, go: 'review-' + r.id })}</td></tr>`; }).join('')}</tbody></table></div>`;
-  return `${pageHead(admin ? 'Review queue' : 'My review queue', admin ? 'Pending work permit requests across every property.' : `Requests at ${esc(me().dept)} · Level ${me().level} for your properties.`, admin ? btn('Issue a pass', { icon: 'plus', go: 'issue-pass' }) : '')}
+  return `${pageHead('Pending approval', admin ? 'Pending work permit requests across every property.' : `Requests at ${esc(me().dept)} · Level ${me().level} for your properties.`, admin ? btn('Issue a pass', { icon: 'plus', go: 'issue-pass' }) : '')}
   <section class="card">${tabsBar('queue', tabs, tab)}
     <div class="filters-row"><div class="search">${ic('search')}<input class="input" data-search="queue" placeholder="Search by request, contractor or unit" value="${esc(ui.search.queue || '')}" aria-label="Search requests"></div>
       <label class="sr" for="qprop">Property</label><select class="select" id="qprop" data-filter="qprop"><option value="">All properties</option>${S.properties.filter(p => inScope(me(), { property: p.id })).map(p => `<option value="${p.id}" ${f.qprop === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
@@ -2496,14 +2499,14 @@ function paymentCard(r) {
   return card('Fee', `<div class="stack-sm">${body}</div>`, { sub: t.name });
 }
 
-function tabOverview(r) {
+function tabOverview(r, inPass) {
   const insp = S.inspections.find(i => i.requestId === r.id), pass = r.passId && byId(S.passes, r.passId);
   return `<div class="stack-lg">
     ${card('Approval timeline', approvalTimeline(r), { sub: 'Who approved each step, when, and what they said.' })}
     ${paymentCard(r)}
     ${card('Work description', `<p style="margin:0">${esc(r.description || 'No description given.')}</p>${r.amc ? `<div class="message" style="margin-top:12px"><b class="small">Maintenance contract (AMC)</b><span class="small">${r.amc.freq} · ${plural(r.amc.required, 'visit')} each period. When approved it appears under Maintenance contracts and Passes.</span></div>` : ''}`)}
-    ${pass ? card('Pass', `<div class="row between"><span><b>${pass.id}</b> ${passBadge(pass)}</span>${btn('Open pass', { sm: true, go: 'pass-' + pass.id })}</div>`) : ''}
-    ${insp ? card('Final inspection', `<div class="row between"><span><b>${insp.id}</b> · ${badge(insp.status === 'closed' ? 'Closed · ' + insp.outcome : insp.status === 'scheduled' ? 'Scheduled' : 'Requested', insp.status === 'closed' ? 'ok' : 'info')}</span>${btn('Open inspection', { sm: true, go: 'inspection-' + insp.id })}</div>`) : ''}
+    ${pass && !inPass ? card('Pass', `<div class="row between"><span><b>${pass.id}</b> ${passBadge(pass)}</span>${btn('Open pass', { sm: true, go: 'pass-' + pass.id })}</div>`) : ''}
+    ${insp ? card('Final inspection', `<div class="row between"><span><b>${insp.id}</b> · ${badge(...insBadge(insp))}</span>${btn('Open inspection', { sm: true, go: 'inspection-' + insp.id })}</div>`) : ''}
   </div>`;
 }
 
@@ -2561,7 +2564,7 @@ function decisionPanel(r) {
   }
   if (r.status !== 'review') {
     const last = r.history.at(-1);
-    return card('Decision', `<div class="stack">${reqBadge(r)}${last ? `<p class="small muted" style="margin:0">${esc(last.action)} · ${esc(last.actor)} · ${fmtDT(last.ts)}</p>${last.note ? `<p class="small" style="margin:0">${esc(last.note)}</p>` : ''}` : ''}${pass ? `<div class="decision-actions">${btn('View pass', { v: 'primary', go: 'pass-' + pass.id })}${r.status === 'approved' && canComplete() && !pass.completed ? btn('Mark as completed', { icon: 'check', act: 'markDone', id: pass.id }) : ''}</div>` : ''}</div>`, { cls: 'decision' });
+    return card('Decision', `<div class="stack">${reqBadge(r)}${last ? `<p class="small muted" style="margin:0">${esc(last.action)} · ${esc(last.actor)} · ${fmtDT(last.ts)}</p>${last.note ? `<p class="small" style="margin:0">${esc(last.note)}</p>` : ''}` : ''}${pass ? `<div class="decision-actions">${btn('View pass', { v: 'primary', go: 'pass-' + pass.id })}${canMarkDone(pass) ? btn('Mark as completed', { icon: 'check', act: 'markDone', id: pass.id }) : ''}</div>` : ''}</div>`, { cls: 'decision' });
   }
   const mine = canDecide(r), force = canForce(r);
   if (!mine && !force) return card('Waiting for another step', `<div class="stack"><p class="muted small" style="margin:0">This request is with <b>${esc(stageName(st))}</b>. ${isReviewer() ? 'Your account can view it but not decide.' : 'You can read everything, but only that step can decide.'}</p>${wfStepper(r)}</div>`, { cls: 'decision' });
@@ -2584,7 +2587,7 @@ function pReview(id) {
   const tabs = [['overview', 'Overview'], ['documents', 'Documents', r.docs.length], ['people', 'People', r.people.length + (r.extraPeople || []).length], ['company', 'Company'], ['site', 'Vehicles & materials'], ['terms', 'Signed terms'], ['history', 'History', r.history.length]];
   const body = { overview: tabOverview, documents: tabDocuments, people: tabPeople, company: tabCompany, site: tabSite, terms: tabTerms, history: tabHistory }[tab](r);
   const ch = r.status === 'changes' ? r.history.filter(h => /changes/i.test(h.action)).at(-1) : null;
-  return `${pageHead(`${esc(r.title)} ${reqBadge(r)}`, `<span class="id">${r.id}</span> · ${esc(ptype(r.type).name)} · submitted ${fmtDT(r.submitted)}${r.status === 'review' ? ' · ' + ageChip(age(r), true) : ''}`, '', [[isReviewer() ? 'Passes' : 'Review queue', isReviewer() ? 'passes' : 'queue'], [r.id]])}
+  return `${pageHead(`${esc(r.title)} ${reqBadge(r)}`, `<span class="id">${r.id}</span> · ${esc(ptype(r.type).name)} · submitted ${fmtDT(r.submitted)}${r.status === 'review' ? ' · ' + ageChip(age(r), true) : ''}`, '', [[isReviewer() ? 'Passes' : 'Pending approval', isReviewer() ? 'passes' : 'queue'], [r.id]])}
   <div class="review"><div class="stack-lg">
     ${ch ? alertBox('warn', 'Waiting for the contractor', esc(ch.note || 'Changes were requested.')) : ''}
     ${r.status === 'payment' ? alertBox('warn', 'Waiting for payment', `All approvals are done. ${money(feeFor(r).total)} is due before the pass and QR codes are issued.`) : ''}
@@ -2660,9 +2663,10 @@ Object.assign(ACT, {
   invoiceOpen(t) { ui.modal = { type: 'invoice', data: { id: t.dataset.id } }; render(); },
   /* completion */
   markDone(t) {
-    const p = byId(S.passes, t.dataset.id), r = p.requestId && byId(S.requests, p.requestId), insp = r && closureOf(r);
-    openConfirm({ title: `Mark ${p.id} as completed?`, message: insp ? 'The work is finished. It moves to Final inspections so it can be closed.' : 'The work is finished and the request is closed. This pass stops working.', confirmText: 'Mark as completed', tone: 'ok', icon: 'check',
-      onConfirm: () => { p.completed = { on: nowISO(), by: me().name }; if (r) { if (insp) { r.status = 'inspection'; S.inspections.unshift({ id: 'FI-' + (200 + S.inspections.length + 1), requestId: r.id, status: 'requested', requested: nowISO(), preferred: addDays(TODAY, 1), time: '10:00', notes: `Marked as completed by ${me().name}.`, photos: 0 }); r.history.push(H(nowISO(), me().name, 'Marked as completed', 'Sent to final inspection.')); } else { r.status = 'completed'; r.history.push(H(nowISO(), me().name, 'Marked as completed')); } } persist(); toast(insp ? 'Marked as completed. It is now in Final inspections.' : 'Marked as completed.'); } });
+    const p = byId(S.passes, t.dataset.id); if (!canMarkDone(p)) return;
+    const r = p.requestId && byId(S.requests, p.requestId), insp = r && closureOf(r);
+    openConfirm({ title: `Mark ${p.id} as completed?`, message: insp ? 'The work is finished. It goes to Final inspections, where the closing department checks it and closes it.' : 'The work is finished and the request is closed. This pass stops working.', confirmText: 'Mark as completed', tone: 'ok', icon: 'check',
+      onConfirm: () => { p.completed = { on: nowISO(), by: me().name }; if (r) { if (insp) { r.status = 'inspection'; S.inspections.unshift({ id: 'FI-' + (200 + S.inspections.length + 1), requestId: r.id, status: 'pending', requested: nowISO(), notes: `Marked as completed by ${me().name}.`, photos: 0, rounds: [] }); r.history.push(H(nowISO(), me().name, 'Marked as completed', 'Sent to final inspection.')); } else { r.status = 'completed'; r.history.push(H(nowISO(), me().name, 'Marked as completed')); } } persist(); toast(insp ? 'Marked as completed. It is now in Final inspections.' : 'Marked as completed.'); } });
   },
 });
 
@@ -2691,29 +2695,36 @@ function pPasses() {
   const tabs = [...T.map(([k, l]) => [k, l, list0.filter(p => st(p) === k).length]), ['all', 'All', list0.length]];
   const tab = curTab('passes', 'active'), q = (ui.search.passes || '').toLowerCase();
   const list = list0.filter(p => tab === 'all' || st(p) === tab).filter(p => !q || [p.id, p.title, holderName(p), p.unit].join(' ').toLowerCase().includes(q)).sort((a, b) => b.issued.localeCompare(a.issued));
-  return `${pageHead('Passes', 'Every pass: approved, expired, revoked, suspended or completed. Work that is finished is marked as completed.', can('issue') ? btn('Issue a pass', { v: 'primary', icon: 'plus', go: 'issue-pass' }) : '')}
+  return `${pageHead('Passes', `Every approved pass. Open one to see its approvals, documents, people and more.${S.settings.finalInspection ? ' Finished work is marked as completed inside the pass.' : ''}`, can('issue') ? btn('Issue a pass', { v: 'primary', icon: 'plus', go: 'issue-pass' }) : '')}
   ${!isAdmin() && !canComplete() ? alertBox('info', 'View only', 'Your account can see passes but not change them.') : ''}
   <section class="card">${tabsBar('passes', tabs, tab)}<div class="filters-row"><div class="search">${ic('search')}<input class="input" data-search="passes" placeholder="Search by pass, holder or unit" value="${esc(ui.search.passes || '')}" aria-label="Search passes"></div></div>
-  ${list.length ? `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Pass</th><th>Holder</th><th>Location</th><th>Valid</th><th>Status</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${list.map(p => `<tr class="clickable" data-go="pass-${p.id}"><td><div class="t-title"><b>${esc(p.title)}</b><span><span class="id">${p.id}</span> · ${p.amc ? 'Maintenance contract' : p.kind === 'work' ? 'Work pass' : p.kind === 'visitor' ? 'Visitor pass' : 'Manual pass'}</span></div></td><td data-m="sub">${esc(holderName(p))}</td><td data-m="hide">${esc(p.unit)}<div class="mini">${esc(prop(p.property).name)}</div></td><td data-m="hide" class="num">${range(p.from, p.to)}</td><td data-m="side">${passBadge(p)}</td><td class="t-actions">${canComplete() && !p.completed && p.kind === 'work' ? btn('Mark as completed', { sm: true, act: 'markDone', id: p.id }) : btn('View', { sm: true, v: 'ghost', go: 'pass-' + p.id })}</td></tr>`).join('')}</tbody></table></div>` : emptyState('ticket', 'No passes here', q ? 'No passes match your search.' : 'Passes appear here once requests are approved.')}
+  ${list.length ? `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Pass</th><th>Holder</th><th>Location</th><th>Valid</th><th>Status</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${list.map(p => `<tr class="clickable" data-go="pass-${p.id}"><td><div class="t-title"><b>${esc(p.title)}</b><span><span class="id">${p.id}</span> · ${p.amc ? 'Maintenance contract' : p.kind === 'work' ? 'Work pass' : p.kind === 'visitor' ? 'Visitor pass' : 'Manual pass'}</span></div></td><td data-m="sub">${esc(holderName(p))}</td><td data-m="hide">${esc(p.unit)}<div class="mini">${esc(prop(p.property).name)}</div></td><td data-m="hide" class="num">${range(p.from, p.to)}</td><td data-m="side">${passBadge(p)}</td><td class="t-actions">${btn('View', { sm: true, v: 'ghost', go: 'pass-' + p.id })}</td></tr>`).join('')}</tbody></table></div>` : emptyState('ticket', 'No passes here', q ? 'No passes match your search.' : 'Passes appear here once requests are approved.')}
   <div class="pager"><span>Showing ${list.length} pass${list.length === 1 ? '' : 'es'}</span></div></section>`;
+}
+function passIssueTimeline(p) {
+  return `<div class="timeline"><div class="tl done"><span class="dot">${ic('check')}</span><div class="grow"><b>Issued by ${esc(p.issuedBy)}</b><span>${fmtDT(p.issued)}</span><p class="small" style="margin:6px 0 0;color:var(--text-2)">Issued directly by the community. There was no request to approve.</p></div></div></div>`;
 }
 function pPass(id) {
   const p = byId(S.passes, id); if (!p || !passVisible(p)) return null;
   const ppl = passPeople(p), s = passState(p), r = p.requestId && byId(S.requests, p.requestId), pay = r && payOf(r);
-  const extras = r ? (r.extraPeople || []) : [];
-  const actions = (canComplete() && !p.completed && p.kind === 'work' ? btn('Mark as completed', { icon: 'check', act: 'markDone', id: p.id }) : '') + (isAdmin() && ['active', 'upcoming'].includes(s) ? btn('Revoke pass', { v: 'danger', icon: 'ban', act: 'revokePass', id: p.id }) : '') + btn('Download PDF', { icon: 'download', act: 'passPdf', id: p.id });
-  return `${pageHead(`${esc(p.title)} ${passBadge(p)}${p.amc ? ' ' + badge('Maintenance contract', 'info') : ''}`, `<span class="id">${p.id}</span> · issued ${fmtDT(p.issued)} by ${esc(p.issuedBy)}`, actions, [['Passes', 'passes'], [p.id]])}
-  ${p.revoked ? alertBox('bad', 'This pass was revoked', `${esc(p.revoked.reason)} <span class="faint">· ${esc(p.revoked.by)}, ${fmtDT(p.revoked.on)}</span>`) : ''}
-  ${s === 'suspended' ? alertBox('bad', 'This company is suspended', 'The pass does not work at the gate while the company is suspended.', isAdmin() ? btn('Open contractor', { sm: true, go: 'contractor-' + p.holder }) : '') : ''}
-  ${p.completed ? alertBox('ok', 'Work completed', `Marked as completed by ${esc(p.completed.by)} · ${fmtDT(p.completed.on)}.`) : ''}
-  <div class="grid-main"><div class="stack-lg">
-    ${card('Pass details', `<div class="pass-hero"><div class="qr-card ${s === 'active' || s === 'upcoming' ? '' : 'dim'}">${qrSvg(p.id)}</div><dl class="kv-list"><dt>Holder</dt><dd>${esc(holderName(p))}</dd><dt>Location</dt><dd>${esc(p.unit)}, ${esc(prop(p.property).name)}</dd><dt>Valid</dt><dd>${range(p.from, p.to)}</dd><dt>Type</dt><dd>${p.amc ? 'Maintenance contract' : p.kind === 'work' ? 'Work pass' : p.kind === 'visitor' ? 'Visitor pass' : 'Manual pass'}</dd>${r ? `<dt>Request</dt><dd><button class="btn-link" data-go="review-${r.id}">${r.id} · ${esc(r.title)}</button></dd>` : ''}</dl></div>`)}
-    ${r ? card('Approvals', `<div class="table-wrap"><table class="table"><thead><tr><th>Step</th><th>Approved by</th><th>When</th></tr></thead><tbody>${approvalRows(r).filter(x => !/Payment|Marked|revoked/.test(x[0])).map(x => `<tr><td><b>${esc(x[0])}</b>${x[3] && x[3] !== '-' ? `<div class="mini">${esc(x[3])}</div>` : ''}</td><td>${esc(x[1])}</td><td class="num">${esc(x[2])}</td></tr>`).join('')}</tbody></table></div>`, { raw: true, sub: 'Also printed on the PDF.' }) : ''}
+  const extras = r ? (r.extraPeople || []) : [], fi = r && S.inspections.find(x => x.requestId === r.id);
+  const tabs = r ? [['pass', 'Pass'], ['overview', 'Details & approvals'], ['documents', 'Documents', r.docs.length], ['people', 'People', r.people.length + extras.length], ['company', 'Company'], ['site', 'Vehicles & materials'], ['terms', 'Signed terms'], ['history', 'History', r.history.length]] : [['pass', 'Pass'], ['overview', 'Approval']];
+  const tab = curTab('ps-' + id, 'pass');
+  const actions = (canMarkDone(p) ? btn('Mark as completed', { icon: 'check', act: 'markDone', id: p.id }) : '') + (isAdmin() && ['active', 'upcoming'].includes(s) ? btn('Revoke pass', { v: 'danger', icon: 'ban', act: 'revokePass', id: p.id }) : '') + btn('Download PDF', { icon: 'download', act: 'passPdf', id: p.id });
+  const main = `<div class="grid-main"><div class="stack-lg">
+    ${card('Pass details', `<div class="pass-hero"><div class="qr-card ${s === 'active' || s === 'upcoming' ? '' : 'dim'}">${qrSvg(p.id)}</div><dl class="kv-list"><dt>Holder</dt><dd>${esc(holderName(p))}</dd><dt>Location</dt><dd>${esc(p.unit)}, ${esc(prop(p.property).name)}</dd><dt>Valid</dt><dd>${range(p.from, p.to)}</dd><dt>Status</dt><dd>${passBadge(p)}${s === 'upcoming' ? ' <span class="muted small">Starts ' + fmtDay(p.from) + '. Work has not started yet.</span>' : ''}</dd><dt>Type</dt><dd>${p.amc ? 'Maintenance contract' : p.kind === 'work' ? 'Work pass' : p.kind === 'visitor' ? 'Visitor pass' : 'Manual pass'}</dd>${r ? `<dt>Request</dt><dd><button class="btn-link" data-go="review-${r.id}">${r.id} · ${esc(r.title)}</button></dd>` : ''}</dl></div>`)}
     ${card(`People allowed in (${ppl.length + extras.length})`, ppl.map(x => `<div class="person-row"><span class="avatar">${initials(x.name)}</span><div class="meta"><b>${esc(x.name)}</b><span>${esc(x.sub)}</span></div></div>`).join('') + extras.map(x => { const w = person(x.pid); return `<div class="person-row"><span class="avatar">${initials(w.name)}</span><div class="meta"><b>${esc(w.name)}</b><span>${esc(w.role)} · added after approval</span></div>${x.revoked ? badge('Revoked', 'bad') : badge('Added later', 'info')}</div>`; }).join('') || '<p class="muted small" style="margin:0">No named people.</p>', { tight: true })}
   </div><div class="stack-lg">
     ${pay ? card('Payment', `<div class="stack-sm"><div class="row between"><b style="font-size:18px">${money(pay.amount)}</b>${badge('Paid', 'ok')}</div><span class="muted small">${payLabel(pay.method)} · ${fmtDT(pay.ts)}</span><div class="row">${btn('View invoice', { sm: true, icon: 'receipt', act: 'invoiceOpen', id: pay.id })}</div></div>`) : ''}
+    ${fi ? card('Final inspection', `<div class="stack-sm"><div class="row between"><b>${fi.id}</b>${badge(...insBadge(fi))}</div>${btn('Open inspection', { sm: true, go: 'inspection-' + fi.id })}${fi.status === 'closed' ? btn('Closure report', { sm: true, icon: 'file', act: 'reportOpen', id: fi.id }) : ''}</div>`) : ''}
     ${card('Vehicles', (p.vehicles || []).length ? p.vehicles.map(v => `<div class="list-row"><span class="ic tone-neutral">${ic('car')}</span><span class="grow"><b>${esc(v.plate)}</b><span>${esc(v.type)}</span></span></div>`).join('') : '<p class="muted small" style="margin:0">No vehicles.</p>', { tight: true })}
     ${card('Recent gate activity', (() => { const l = S.logs.filter(x => x.pass === p.id).slice(0, 4); return l.length ? l.map(x => `<div class="list-row"><span class="ic tone-${x.dir === 'in' ? 'ok' : 'neutral'}">${ic(x.dir === 'in' ? 'logIn' : 'logout')}</span><span class="grow"><b>${esc(person(x.pid).name)} ${x.dir === 'in' ? 'entered' : 'left'}</b><span>${fmtDT(x.ts)} · ${esc(x.gate)}${x.manual ? ' · checked out by hand' : ''}</span></span></div>`).join('') : '<p class="muted small" style="margin:0">No scans yet.</p>'; })(), { tight: true })}</div></div>`;
+  const body = tab === 'pass' ? main : !r ? card('Approval', passIssueTimeline(p)) : { overview: tabOverview, documents: tabDocuments, people: tabPeople, company: tabCompany, site: tabSite, terms: tabTerms, history: tabHistory }[tab](r, true);
+  return `${pageHead(`${esc(p.title)} ${passBadge(p)}${p.amc ? ' ' + badge('Maintenance contract', 'info') : ''}`, `<span class="id">${p.id}</span> · issued ${fmtDT(p.issued)} by ${esc(p.issuedBy)}`, actions, [['Passes', 'passes'], [p.id]])}
+  ${p.revoked ? alertBox('bad', 'This pass was revoked', `${esc(p.revoked.reason)} <span class="faint">· ${esc(p.revoked.by)}, ${fmtDT(p.revoked.on)}</span>`) : ''}
+  ${s === 'suspended' ? alertBox('bad', 'This company is suspended', 'The pass does not work at the gate while the company is suspended.', isAdmin() ? btn('Open contractor', { sm: true, go: 'contractor-' + p.holder }) : '') : ''}
+  ${p.completed ? alertBox('ok', 'Marked as completed', `${esc(p.completed.by)} · ${fmtDT(p.completed.on)}.${fi ? ' It is in Final inspections.' : ''}`) : ''}
+  <div class="stack">${tabsBar('ps-' + id, tabs, tab)}${body}</div>`;
 }
 registerRoute('passes', pPasses); registerPrefix('pass-', pPass);
 ACT.revokePass = t => { const p = byId(S.passes, t.dataset.id); openConfirm({ title: `Revoke ${p.id}?`, message: 'The pass stops working at the gate straight away. The contractor is told why.', confirmText: 'Revoke pass', tone: 'danger', reason: { label: 'Reason for revoking', min: 10, ph: 'For example: unsafe practice reported by security.' }, onConfirm: d => { p.revoked = { on: nowISO(), by: me().name, reason: d.reason.trim() }; persist(); toast(`${p.id} revoked.`); } }); };
@@ -2766,35 +2777,58 @@ registerRoute('calendar', pCalendar);
 Object.assign(ACT, { calPick(t) { ui.sel.calDay = t.dataset.id; render(); }, calPrev() { ui.sel.calOff = (ui.sel.calOff || 0) - 1; render(); }, calNext() { ui.sel.calOff = (ui.sel.calOff || 0) + 1; render(); }, calToday() { ui.sel.calOff = 0; ui.sel.calDay = TODAY; render(); } });
 
 /* ---------- Final inspections ---------- */
-const INSP = { requested: ['To schedule', 'warn'], scheduled: ['Scheduled', 'info'], closed: ['Closed', 'ok'] };
+const insBadge = i => i.status === 'closed' ? [i.outcome === 'Completed' ? 'Closed · completed' : 'Closed · incomplete', i.outcome === 'Completed' ? 'ok' : 'warn'] : i.status === 'waiting' ? ['Waiting for contractor', 'warn'] : ['Needs review', 'info'];
+const DEC = { not_ready: ['Not complete yet', 'warn'], complete: ['Completed', 'ok'], incomplete: ['Closed as incomplete', 'bad'], resubmitted: ['Contractor finished again', 'info'] };
 function pInspections() {
+  if (!S.settings.finalInspection) return null;
   const all = S.inspections.filter(i => { const r = byId(S.requests, i.requestId); return r && inScope(me(), r); });
-  const tabs = [['open', 'Open', all.filter(i => i.status !== 'closed').length], ['closed', 'Closed', all.filter(i => i.status === 'closed').length]], tab = curTab('insp', 'open');
-  const list = all.filter(i => (tab === 'open') === (i.status !== 'closed'));
-  return `${pageHead('Final inspections', 'After work finishes, the contractor asks for an inspection before the request is closed.')}
-  ${!isAdmin() && !S.permitTypes.some(t => t.closure && t.closureDepartments.includes(me().dept)) ? alertBox('info', 'View only', 'Your department does not close work. You can see inspections but not schedule or close them.') : ''}
-  <section class="card">${tabsBar('insp', tabs, tab)}${list.length ? `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Request</th><th>Contractor</th><th>Preferred</th><th>Status</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${list.map(i => { const r = byId(S.requests, i.requestId); return `<tr class="clickable" data-go="inspection-${i.id}"><td>${reqTitleCell(r)}</td><td data-m="sub">${esc(contractor(r.contractor).name)}</td><td data-m="hide" class="num">${i.scheduledFor ? fmtDT(i.scheduledFor) : fmtS(i.preferred) + ' · ' + i.time}</td><td data-m="side">${badge(...(i.status === 'closed' ? [i.outcome || 'Closed', 'ok'] : INSP[i.status]))}</td><td class="t-actions">${btn('Open', { sm: true, v: 'ghost', go: 'inspection-' + i.id })}</td></tr>`; }).join('')}</tbody></table></div>` : emptyState('clipboard', 'Nothing here', 'No inspections in this list.')}</section>`;
+  const tabs = [['pending', 'Needs review', all.filter(i => i.status === 'pending').length], ['waiting', 'Waiting for contractor', all.filter(i => i.status === 'waiting').length], ['closed', 'Closed', all.filter(i => i.status === 'closed').length]], tab = curTab('insp', 'pending');
+  const list = all.filter(i => i.status === tab);
+  return `${pageHead('Final inspections', 'Work marked as completed comes here. The closing department checks it, adds feedback and closes it.')}
+  ${!isAdmin() && !S.permitTypes.some(t => t.closure && t.closureDepartments.includes(me().dept)) ? alertBox('info', 'View only', 'Your department does not close work. You can read inspections but not close them.') : ''}
+  <section class="card">${tabsBar('insp', tabs, tab)}${list.length ? `<div class="table-wrap"><table class="table responsive"><thead><tr><th>Request</th><th>Contractor</th><th>Marked completed</th><th>Status</th><th class="t-actions"><span class="sr">Actions</span></th></tr></thead><tbody>${list.map(i => { const r = byId(S.requests, i.requestId); return `<tr class="clickable" data-go="inspection-${i.id}"><td>${reqTitleCell(r)}</td><td data-m="sub">${esc(contractor(r.contractor).name)}</td><td data-m="hide" class="num">${fmtDT(i.requested)}</td><td data-m="side">${badge(...insBadge(i))}</td><td class="t-actions">${btn(i.status === 'pending' && closureOK(r) ? 'Review' : 'View', { sm: true, v: i.status === 'pending' && closureOK(r) ? 'primary' : 'ghost', go: 'inspection-' + i.id })}</td></tr>`; }).join('')}</tbody></table></div>` : emptyState('clipboard', 'Nothing here', tab === 'pending' ? 'No finished work is waiting for review.' : 'No inspections in this list.')}</section>`;
 }
 function pInspection(id) {
   const i = byId(S.inspections, id), r = i && byId(S.requests, i.requestId); if (!r || !inScope(me(), r)) return null;
-  return `${pageHead(`${esc(r.title)} ${badge(...(i.status === 'closed' ? [i.outcome, 'ok'] : INSP[i.status]))}`, `<span class="id">${i.id}</span> · ${esc(contractor(r.contractor).name)} · ${esc(r.unit)}`, closureOK(r) && i.status === 'requested' ? btn('Schedule inspection', { v: 'primary', icon: 'calendar', act: 'inspSchedule', id: i.id }) : closureOK(r) && i.status === 'scheduled' ? btn('Close work', { v: 'primary', icon: 'check', act: 'inspClose', id: i.id }) : '', [['Final inspections', 'inspections'], [i.id]])}
-  <div class="grid-main">${card('Contractor’s message', `<div class="stack"><p style="margin:0">${esc(i.notes)}</p><div class="row small muted"><span>${ic('image')} ${plural(i.photos, 'photo')} attached</span><span>Preferred ${fmtDay(i.preferred)}, ${i.time}</span></div></div>`)}
-  ${card('Progress', `<div class="timeline">${[['Requested', fmtDT(i.requested), true], ['Scheduled', i.scheduledFor ? `${fmtDT(i.scheduledFor)} · ${esc(i.scheduledBy || '')}` : 'Not yet', !!i.scheduledFor], ['Closed', i.closedOn ? `${fmtDT(i.closedOn)} · ${esc(i.closedBy)} · ${esc(i.outcome)}` : 'Not yet', i.status === 'closed']].map(([a, b, d], k) => `<div class="tl ${d ? 'done' : ''}"><span class="dot">${d ? ic('check') : ''}</span><div class="grow"><b>${a}</b><span>${b}</span></div></div>`).join('')}</div>`)}</div>
-  <div style="margin-top:16px">${btn('Open request', { go: 'review-' + r.id })}</div>`;
+  const can = closureOK(r), pass = r.passId && byId(S.passes, r.passId);
+  const steps = [{ title: 'Marked as completed', who: contractor(r.contractor).name, ts: i.requested, note: i.notes, files: [], tone: 'done' }, ...i.rounds.map(x => ({ title: DEC[x.decision][0], who: x.by, ts: x.ts, note: x.comment, files: x.files, tone: x.decision === 'complete' ? 'done' : x.decision === 'incomplete' ? 'bad' : x.decision === 'not_ready' ? 'warn' : 'done' }))];
+  const actions = (i.status === 'pending' && can ? btn('Review and close', { v: 'primary', icon: 'check', act: 'inspReview', id: i.id }) : '') + (i.status === 'waiting' && can ? btn('Demo: contractor finished again', { v: 'ghost', act: 'inspResubmit', id: i.id }) : '') + (i.status === 'closed' ? btn('Closure report', { v: 'primary', icon: 'file', act: 'reportOpen', id: i.id }) + btn('Download PDF', { icon: 'download', act: 'reportPdf', id: i.id }) : '');
+  return `${pageHead(`${esc(r.title)} ${badge(...insBadge(i))}`, `<span class="id">${i.id}</span> · ${esc(contractor(r.contractor).name)} · ${esc(r.unit)}`, actions, [['Final inspections', 'inspections'], [i.id]])}
+  ${i.status === 'waiting' ? alertBox('warn', 'Waiting for the contractor', 'They were told what is still missing. When they finish and mark it completed again, it comes back to Needs review.') : ''}
+  ${i.status === 'pending' && !can ? alertBox('info', 'View only', 'Only the closing departments and administrators can close this work.') : ''}
+  <div class="grid-main"><div class="stack-lg">
+  ${card('Inspection history', `<div class="timeline">${steps.map((x, k) => `<div class="tl ${x.tone === 'bad' ? '' : x.tone === 'warn' ? '' : 'done'} ${k === steps.length - 1 && i.status !== 'closed' ? 'now' : ''}"><span class="dot">${x.tone === 'bad' ? ic('x') : x.tone === 'warn' ? ic('alert') : ic('check')}</span><div class="grow"><b>${esc(x.title)}</b><span>${esc(x.who)} · ${fmtDT(x.ts)}</span>${x.note ? `<p class="small" style="margin:6px 0 0;color:var(--text-2)">${esc(x.note)}</p>` : ''}${(x.files || []).length ? `<div class="chips-row" style="margin-top:6px">${x.files.map(f => `<span class="chip">${ic('file')} ${esc(f)}</span>`).join('')}</div>` : ''}</div></div>`).join('')}</div>`)}
+  ${i.status === 'closed' ? card('Closing remark', `<div class="stack-sm"><div class="row">${badge(...insBadge(i))}<span class="muted small">${esc(i.closedBy)} · ${fmtDT(i.closedOn)}</span></div><p style="margin:0">${esc(i.remark)}</p></div>`) : ''}</div>
+  <div class="stack-lg">${card('Work details', `<dl class="kv-list" style="grid-template-columns:110px 1fr"><dt>Request</dt><dd><button class="btn-link" data-go="review-${r.id}">${r.id}</button></dd><dt>Type</dt><dd>${esc(ptype(r.type).name)}</dd><dt>Location</dt><dd>${esc(r.unit)}, ${esc(prop(r.property).name)}</dd><dt>Dates</dt><dd>${range(r.from, r.to)}</dd>${pass ? `<dt>Pass</dt><dd><button class="btn-link" data-go="pass-${pass.id}">${pass.id}</button></dd>` : ''}<dt>Closed by</dt><dd>${esc(ptype(r.type).closureDepartments.join(', ') || 'Administrators')}</dd></dl>`)}</div></div>`;
 }
 registerRoute('inspections', pInspections); registerPrefix('inspection-', pInspection);
-MODALS.inspSchedule = m => modalFrame({ title: 'Schedule inspection', sub: 'The contractor is told the date and time.', size: 'sm', body: `<div class="grid-2">${F({ id: 'is-d', label: 'Date', type: 'date', bind: 'm.date', req: true })}${F({ id: 'is-t', label: 'Time', type: 'time', bind: 'm.time', req: true })}</div>`, foot: btn('Cancel', { act: 'closeModal' }) + btn('Schedule', { v: 'primary', act: 'inspScheduleOk' }) });
-MODALS.inspClose = m => modalFrame({ title: 'Close this work', sub: 'Closing completes the request. This cannot be undone.', size: 'sm', body: `${F({ id: 'ic-o', label: 'Outcome', bind: 'm.outcome', options: ['Passed', 'Passed with remarks', 'Failed'], req: true, rerender: true })}${F({ id: 'ic-n', label: 'Notes', bind: 'm.note', type: 'textarea', rows: 3, opt: true })}`, foot: btn('Cancel', { act: 'closeModal' }) + btn('Close work', { v: 'primary', act: 'inspCloseOk' }) });
+MODALS.inspReview = m => { const d = m.data, e = d.errs || {};
+  return modalFrame({ title: 'Review and close', sub: 'Add your feedback. Attach photos or documents if needed.', size: '', body: `<div class="stack-lg">
+  <div class="field"><span class="label">Decision</span><div class="stack-sm">${[['complete', 'Work is complete', 'Close it. A closure report is created.'], ['not_ready', 'Not complete yet', 'Keep it open. The contractor is told what to fix and marks it completed again.'], ['incomplete', 'Close as incomplete', 'Close it for good although the work is not finished.']].map(([v, l, s]) => `<label class="check"><input type="radio" name="ins-d" value="${v}" data-bind="m.decision" data-rerender ${d.decision === v ? 'checked' : ''}><span>${l}<small>${s}</small></span></label>`).join('')}</div></div>
+  ${F({ id: 'ins-c', label: d.decision === 'complete' ? 'Closing remark' : 'Feedback for the contractor', bind: 'm.comment', type: 'textarea', rows: 3, req: true, err: e.comment, ph: d.decision === 'not_ready' ? 'What is still missing?' : 'Write a short remark.' })}
+  <div class="field"><span class="label">Photos or documents <span class="opt">(optional)</span></span><label class="dropzone" for="ins-file"><span class="ic">${ic('upload')}</span><b>Add photos or documents</b><span class="xs faint">Images or PDF</span></label><input class="file-input" type="file" id="ins-file" multiple accept="image/*,application/pdf" data-insfile>${d.files.length ? `<div class="chips-row" style="margin-top:6px">${d.files.map((f, k) => `<span class="chip">${esc(f)}<button type="button" data-act="insFileRemove" data-id="${k}" aria-label="Remove ${esc(f)}">${ic('x')}</button></span>`).join('')}</div>` : ''}</div></div>`, foot: btn('Cancel', { act: 'closeModal' }) + btn(d.decision === 'complete' ? 'Close as complete' : d.decision === 'not_ready' ? 'Send back to contractor' : 'Close as incomplete', { v: d.decision === 'incomplete' ? 'danger' : 'primary', act: 'inspDecide' }) }); };
+document.addEventListener('change', e => { const el = e.target; if (el.dataset && el.dataset.insfile !== undefined && ui.modal && ui.modal.type === 'inspReview') { [...el.files].forEach(f => ui.modal.data.files.push(f.name)); el.value = ''; render(); } });
+MODALS.report = m => { const i = byId(S.inspections, m.data.id), r = byId(S.requests, i.requestId), c = contractor(r.contractor), pass = r.passId && byId(S.passes, r.passId);
+  return modalFrame({ title: `Closure report ${i.id}`, sub: `${esc(r.title)} · ${r.id}`, size: 'lg', body: `<div class="sheet"><div class="stamp">${ic('check')} ${esc(i.outcome === 'Completed' ? 'CLOSED · COMPLETED' : 'CLOSED · INCOMPLETE')}</div><h3>${esc(S.community.name)}</h3><p>Work closure report</p><div class="rule"></div>
+    <dl class="kv"><dt>Permit</dt><dd>${r.id} · ${esc(ptype(r.type).name)}</dd><dt>Work</dt><dd>${esc(r.title)}</dd><dt>Contractor</dt><dd>${esc(c.name)}</dd><dt>Location</dt><dd>${esc(r.unit)}, ${esc(prop(r.property).name)}</dd><dt>Dates</dt><dd>${range(r.from, r.to)} · ${esc(r.hours)}</dd><dt>Workers</dt><dd>${r.people.map(person).map(x => esc(x.name)).join(', ')}</dd>${pass ? `<dt>Pass</dt><dd>${pass.id}</dd>` : ''}<dt>Marked completed</dt><dd>${fmtDT(i.requested)}</dd><dt>Closed</dt><dd>${fmtDT(i.closedOn)} by ${esc(i.closedBy)}</dd><dt>Outcome</dt><dd>${esc(i.outcome === 'Completed' ? 'Completed' : 'Closed as incomplete')}</dd></dl>
+    <div class="rule" style="height:1px"></div><b>Contractor’s completion notes</b><p>${esc(i.notes)}</p><b>Inspection</b>${i.rounds.map(x => `<p><b>${esc(DEC[x.decision][0])}</b> · ${esc(x.by)} · ${fmtDT(x.ts)}<br>${esc(x.comment)}${x.files.length ? `<br><span style="color:#5E6A7C">Attached: ${x.files.map(esc).join(', ')}</span>` : ''}</p>`).join('')}<div class="rule" style="height:1px"></div><b>Closing remark</b><p>${esc(i.remark)}</p></div>`, foot: btn('Close', { act: 'closeModal' }) + btn('Download PDF', { v: 'primary', icon: 'download', act: 'reportPdf', id: i.id }) }); };
 Object.assign(ACT, {
-  inspSchedule(t) { const i = byId(S.inspections, t.dataset.id); ui.modal = { type: 'inspSchedule', data: { id: i.id, date: i.preferred, time: i.time } }; render(); },
-  inspScheduleOk() { const d = ui.modal.data, i = byId(S.inspections, d.id), r = byId(S.requests, i.requestId); if (!d.date || !d.time) { toast('Choose a date and time.', { err: true }); return; } i.status = 'scheduled'; i.scheduledFor = d.date + 'T' + d.time; i.scheduledBy = me().name; r.history.push(H(nowISO(), me().name, 'Inspection scheduled for ' + fmtS(d.date))); ui.modal = null; persist(); toast('Inspection scheduled.'); render(); },
-  inspClose(t) { ui.modal = { type: 'inspClose', data: { id: t.dataset.id, outcome: 'Passed', note: '' } }; render(); },
-  inspCloseOk() {
+  inspReview(t) { ui.modal = { type: 'inspReview', data: { id: t.dataset.id, decision: 'complete', comment: '', files: [] } }; render(); },
+  insFileRemove(t) { ui.modal.data.files.splice(+t.dataset.id, 1); render(); },
+  inspDecide() {
     const d = ui.modal.data, i = byId(S.inspections, d.id), r = byId(S.requests, i.requestId);
-    openConfirm({ title: 'Close this work?', message: `${r.title} is marked ${d.outcome.toLowerCase()} and the request is completed.`, confirmText: 'Close work', tone: 'warn', onConfirm: () => { i.status = 'closed'; i.outcome = d.outcome; i.closedOn = nowISO(); i.closedBy = me().name; i.report = true; r.status = 'completed'; r.history.push(H(nowISO(), me().name, 'Work closed', `${d.outcome}.${d.note ? ' ' + d.note : ''}`)); persist(); toast('Work closed.'); } });
+    if (d.comment.trim().length < 5) { d.errs = { comment: 'Write at least a short remark.' }; render(); return; }
+    const lab = { complete: ['Close this work as complete?', 'The request is completed and a closure report is created.', 'Close as complete', 'ok'], not_ready: ['Send it back to the contractor?', 'It stays here as waiting. The contractor sees your feedback and marks it completed again when ready.', 'Send back', 'warn'], incomplete: ['Close as incomplete?', 'The work is closed for good although it is not finished. This is written in the closure report.', 'Close as incomplete', 'danger'] }[d.decision];
+    openConfirm({ title: lab[0], message: lab[1], confirmText: lab[2], tone: lab[3], onConfirm: () => {
+      i.rounds.push({ ts: nowISO(), by: me().name, decision: d.decision, comment: d.comment.trim(), files: [...d.files] });
+      if (d.decision === 'not_ready') { i.status = 'waiting'; r.history.push(H(nowISO(), me().name, 'Final inspection: not complete yet', d.comment.trim())); }
+      else { i.status = 'closed'; i.outcome = d.decision === 'complete' ? 'Completed' : 'Incomplete'; i.remark = d.comment.trim(); i.closedOn = nowISO(); i.closedBy = me().name; r.status = 'completed'; r.history.push(H(nowISO(), me().name, d.decision === 'complete' ? 'Work closed' : 'Closed as incomplete', d.comment.trim())); }
+      persist(); toast(d.decision === 'not_ready' ? 'Sent back to the contractor.' : 'Work closed. The closure report is ready.');
+    } });
   },
+  inspResubmit(t) { const i = byId(S.inspections, t.dataset.id), r = byId(S.requests, i.requestId); i.rounds.push({ ts: nowISO(), by: contractor(r.contractor).name + ' (contractor)', decision: 'resubmitted', comment: 'The required work is finished.', files: [] }); i.status = 'pending'; r.history.push(H(nowISO(), contractor(r.contractor).name, 'Marked as completed again')); persist(); toast('Back in Needs review.'); render(); },
+  reportOpen(t) { ui.modal = { type: 'report', data: { id: t.dataset.id } }; render(); },
 });
-
 /* ---------- Access logs ---------- */
 function pLogs() {
   if (!canViewLogs()) return null;
@@ -2877,18 +2911,45 @@ function approvalRows(r) {
   r.history.filter(h => /Requested changes|Rejected|Payment received|Worker revoked|Marked as completed/.test(h.action)).forEach(h => out.push([h.action, h.actor, fmtDT(h.ts), h.note || '-']));
   return out;
 }
+function requestSections(w, r) {
+  const c = contractor(r.contractor), t = ptype(r.type);
+  w.h('Request'); w.kv([['Request', `${r.id}  |  ${t.name}`], ['Work', r.title], ['Contractor', c.name], ['Site contact', `${r.contact}, ${r.phone}`], ['Location', `${r.unit}, ${prop(r.property).name}`], ['Work dates', `${range(r.from, r.to)}, ${r.hours}`], ['Submitted', fmtDT(r.submitted)]]);
+  if (r.description) { w.gap(4); w.text(r.description, { size: 9.5 }); }
+  if (r.amc) { w.gap(4); w.text(`Maintenance contract (AMC): ${r.amc.freq}, ${plural(r.amc.required, 'visit')} each period.`, { size: 9.5, bold: true }); }
+  w.h('Approvals'); w.table(['Department and level', 'Approved by', 'Date and time', 'Comment'], approvalRows(r), [0.24, 0.22, 0.2, 0.34]);
+  w.h(`Documents attached (${r.docs.length})`); if (r.docs.length) w.table(['Document', 'File', 'Valid until'], r.docs.map(d => [d.label, d.file, d.noExpiry ? 'No expiry' : fmt(d.expiry)]), [0.38, 0.38, 0.24]); else w.text('None.', { size: 9.5 });
+  w.h(`Workers (${r.people.length + (r.extraPeople || []).length})`);
+  w.table(['Name', 'Role', 'ID', 'ID valid until'], [...r.people.map(person).map(x => [x.name, x.role, `${x.idType} ${x.idNo}`, fmt(x.idExpiry)]), ...(r.extraPeople || []).map(x => { const q = person(x.pid); return [q.name + ' (added later)', q.role, `${q.idType} ${q.idNo}`, x.revoked ? 'REVOKED' : fmt(q.idExpiry)]; })], [0.26, 0.22, 0.34, 0.18]);
+  w.h('Company'); w.kv([['Company', c.name], ['Contact', `${c.contact}, ${c.email}`], ['Phone', c.phone || '-'], ['Tax registration', c.trn || '-'], ['Trade licence', `${c.licence.no || '-'}${c.licence.expiry ? ', valid to ' + fmt(c.licence.expiry) : ''}`]]);
+  w.h(`Vehicles (${r.vehicles.length})`); if (r.vehicles.length) w.table(['Plate', 'Type', 'Make', 'Weight', 'Trips'], r.vehicles.map(v => [v.plate, v.type, v.make || '-', v.tons ? v.tons + ' t' : '-', String(v.trips || 1)]), [0.26, 0.16, 0.24, 0.17, 0.17]); else w.text('None.', { size: 9.5 });
+  w.h(`Materials (${r.materials.length})`); if (r.materials.length) w.table(['Item', 'Quantity'], r.materials.map(m => [m.name, `${m.qty} ${m.unit}`]), [0.7, 0.3]); else w.text('None.', { size: 9.5 });
+  if (r.terms) { w.h('Signed terms'); w.kv([['Document', `${r.terms.name}, version ${r.terms.version}`], ['Signed by', `${r.terms.signedBy}, ${r.terms.position}`], ['Signed', fmtDT(r.terms.signedAt)], ['Confirmations', `${r.terms.ticked} of ${r.terms.of} ticked`]]); }
+  const pay = payOf(r); if (pay) { w.h('Payment'); w.kv([['Invoice', pay.id], ['Amount', money(pay.amount)], ['Paid by', `${payLabel(pay.method)}, ${fmtDT(pay.ts)}`]]); }
+  const fi = S.inspections.find(x => x.requestId === r.id);
+  if (fi) { w.h('Final inspection'); w.kv([['Status', insBadge(fi)[0]], ['Marked completed', fmtDT(fi.requested)]]); fi.rounds.forEach(x => w.text(`${DEC[x.decision][0]} | ${x.by} | ${fmtDT(x.ts)}: ${x.comment}${x.files.length ? ' (Attached: ' + x.files.join(', ') + ')' : ''}`, { size: 9 })); if (fi.remark) { w.gap(4); w.text(`Closing remark: ${fi.remark}`, { size: 9.5, bold: true }); } }
+  w.h('History'); w.table(['When', 'By', 'What'], r.history.map(h => [fmtDT(h.ts), h.actor, h.action + (h.note ? ': ' + h.note : '')]), [0.2, 0.22, 0.58]);
+}
 async function buildPassPdf(p) {
-  const w = await newPdf(), r = p.requestId && byId(S.requests, p.requestId), pay = r && payOf(r);
+  const w = await newPdf(), r = p.requestId && byId(S.requests, p.requestId);
   w.text(S.community.name, { size: 18, bold: true }); w.text(`${S.community.area}  |  Work permit pass`, { size: 10, color: PDFLib.rgb(0.43, 0.48, 0.55) });
   w.qr(p.id, w.W - w.m - 92, w.H - w.m - 92, 92); w.gap(6);
   w.text(p.title, { size: 15, bold: true, maxW: 380 }); w.text(`${p.id}  |  ${PASS[passState(p)][0]}`, { size: 11 });
   w.y = Math.min(w.y, w.H - w.m - 104); w.gap(10);
   w.h('Pass details');
-  w.kv([['Holder', holderName(p)], ['Permit type', r ? ptype(r.type).name : (p.kind === 'visitor' ? 'Visitor pass' : 'Manual pass')], ['Location', `${p.unit}, ${prop(p.property).name}`], ['Valid', range(p.from, p.to)], ['Work hours', r ? r.hours : '-'], ['Issued', `${fmtDT(p.issued)} by ${p.issuedBy}`]]);
-  w.h(`People allowed in (${passPeople(p).length})`); passPeople(p).forEach(x => w.text(`${x.name}  -  ${x.sub}`, { size: 9.5 }));
-  if (p.vehicles && p.vehicles.length) { w.h('Vehicles'); p.vehicles.forEach(v => w.text(`${v.plate}  -  ${v.type}`, { size: 9.5 })); }
-  if (r) { w.h('Approvals'); w.table(['Department and level', 'Approved by', 'Date and time', 'Comment'], approvalRows(r), [0.24, 0.22, 0.2, 0.34]); }
-  if (pay) { w.h('Payment'); w.kv([['Invoice', pay.id], ['Amount', money(pay.amount)], ['Paid by', `${payLabel(pay.method)}, ${fmtDT(pay.ts)}`]]); }
+  w.kv([['Holder', holderName(p)], ['Permit type', r ? ptype(r.type).name : (p.kind === 'visitor' ? 'Visitor pass' : 'Manual pass')], ['Location', `${p.unit}, ${prop(p.property).name}`], ['Valid', range(p.from, p.to)], ['Work hours', r ? r.hours : '-'], ['Issued', `${fmtDT(p.issued)} by ${p.issuedBy}`], ...(p.completed ? [['Completed', `${fmtDT(p.completed.on)} by ${p.completed.by}`]] : [])]);
+  if (r) requestSections(w, r);
+  else { w.h(`People allowed in (${passPeople(p).length})`); passPeople(p).forEach(x => w.text(`${x.name}  -  ${x.sub}`, { size: 9.5 })); if (p.vehicles && p.vehicles.length) { w.h('Vehicles'); p.vehicles.forEach(v => w.text(`${v.plate}  -  ${v.type}`, { size: 9.5 })); } w.h('Approval'); w.text(`Issued directly by ${p.issuedBy} on ${fmtDT(p.issued)}. There was no request to approve.`, { size: 9.5 }); }
+  w.gap(14); w.text(`Generated ${fmt(TODAY)}. This is a design preview with sample data.`, { size: 8, color: PDFLib.rgb(0.5, 0.55, 0.6) });
+  return w.doc.save();
+}
+async function buildReportPdf(i) {
+  const w = await newPdf(), r = byId(S.requests, i.requestId), pass = r.passId && byId(S.passes, r.passId);
+  w.text(S.community.name, { size: 18, bold: true }); w.text(`${S.community.area}  |  Work closure report`, { size: 10, color: PDFLib.rgb(0.43, 0.48, 0.55) }); w.gap(8);
+  w.text(r.title, { size: 15, bold: true }); w.text(`${i.id}  |  ${i.outcome === 'Completed' ? 'Closed: completed' : 'Closed: incomplete'}`, { size: 11, bold: true, color: i.outcome === 'Completed' ? PDFLib.rgb(0.07, 0.46, 0.3) : PDFLib.rgb(0.58, 0.34, 0) });
+  w.h('Closing'); w.kv([['Outcome', i.outcome === 'Completed' ? 'Work completed' : 'Closed as incomplete'], ['Closed', `${fmtDT(i.closedOn)} by ${i.closedBy}`], ['Closing remark', i.remark], ['Pass', pass ? pass.id : '-']]);
+  w.h('Contractor completion notes'); w.text(i.notes, { size: 9.5 });
+  w.h('Inspection'); i.rounds.forEach(x => { w.text(`${DEC[x.decision][0]}  |  ${x.by}  |  ${fmtDT(x.ts)}`, { size: 9.5, bold: true }); w.text(x.comment, { size: 9.5 }); if (x.files.length) w.text(`Attached: ${x.files.join(', ')}`, { size: 9, color: PDFLib.rgb(0.43, 0.48, 0.55) }); w.gap(4); });
+  requestSections(w, r);
   w.gap(14); w.text(`Generated ${fmt(TODAY)}. This is a design preview with sample data.`, { size: 8, color: PDFLib.rgb(0.5, 0.55, 0.6) });
   return w.doc.save();
 }
@@ -2904,6 +2965,7 @@ async function buildInvoicePdf(pay) {
 }
 Object.assign(ACT, {
   passPdf(t) { const p = byId(S.passes, t.dataset.id); buildPassPdf(p).then(b => { saveBytes(b, `${p.id}-permit.pdf`); toast(`${p.id} PDF ready.`); }).catch(e => toast('Could not make the PDF: ' + e.message, { err: true })); },
+  reportPdf(t) { const i = byId(S.inspections, t.dataset.id); buildReportPdf(i).then(b => { saveBytes(b, `${i.id}-closure-report.pdf`); toast(`${i.id} report ready.`); }).catch(e => toast('Could not make the PDF: ' + e.message, { err: true })); },
   invoicePdf(t) { const pay = byId(S.payments, t.dataset.id); buildInvoicePdf(pay).then(b => { saveBytes(b, `${pay.id}.pdf`); toast(`${pay.id} PDF ready.`); }).catch(e => toast('Could not make the PDF: ' + e.message, { err: true })); },
 });
 
@@ -3093,7 +3155,7 @@ function pSettings(tab) {
     access: () => card('Access & links', `<div class="stack-lg">${sw('a-c', 'f.settings.approveNewContractors', 'Approve new contractors', 'Companies that use your invite link wait for you to accept them.', false)}${sw('a-h', 'f.settings.hideCommunity', 'Hide your community from other contractors', 'Contractors can only join through your invite link or an email invitation. You do not show up when they search.', false)}${sw('a-w', 'f.settings.workersAfterApproval', 'After approval, contractors can add new workers', 'They can add workers to an approved permit. You can revoke anyone added this way.', false)}
       ${F({ id: 'a-r', label: 'Invite link', bind: 'f.settings.linkReuse', options: [['reusable', 'Anyone with the link can ask for access'], ['single', 'Each link works once']], hint: 'Applies to new links you share.' })}</div>`),
     notify: () => card('Notifications', `<div class="stack-lg"><p class="muted small" style="margin:0">Email the administrators when:</p>${[['newRequest', 'A new request is submitted'], ['expiring', 'A contractor document is about to expire'], ['closure', 'A contractor asks for a final inspection'], ['accessRequest', 'A company asks to join']].map(([k, l]) => sw('n-' + k, `f.prefs.adminNotify.${k}`, l, '', false)).join('')}</div>`),
-    rules: () => card('Work rules', `<div class="stack-lg"><div class="grid-2">${F({ id: 'r-f', label: 'Work allowed from', bind: 'f.settings.workHours.from', type: 'time' })}${F({ id: 'r-t', label: 'Work allowed until', bind: 'f.settings.workHours.to', type: 'time' })}${F({ id: 'r-tol', label: 'Gate time tolerance', bind: 'f.settings.tolerance', type: 'number', addon: 'minutes', hint: 'Scans this close to the permitted window still work.' })}</div>
+    rules: () => card('Work rules', `<div class="stack-lg">${sw('r-fi', 'f.settings.finalInspection', 'Use “Mark as completed” and final inspections', 'When on, finished work is marked as completed and goes to the closing department, who add feedback and close it with a report. Choose which permit types need it, and who closes them, on each permit type.', false)}<div class="grid-2">${F({ id: 'r-f', label: 'Work allowed from', bind: 'f.settings.workHours.from', type: 'time' })}${F({ id: 'r-t', label: 'Work allowed until', bind: 'f.settings.workHours.to', type: 'time' })}${F({ id: 'r-tol', label: 'Gate time tolerance', bind: 'f.settings.tolerance', type: 'number', addon: 'minutes', hint: 'Scans this close to the permitted window still work.' })}</div>
       ${sw('r-g', 'f.settings.grace', 'Allow a grace period after work ends', 'People can still leave without a violation.', true)}${st.grace ? F({ id: 'r-gm', label: 'Grace period', bind: 'f.settings.graceMinutes', type: 'number', addon: 'minutes' }) : ''}
       ${sw('r-o', 'f.settings.oneTimeApproval', 'Approve each request once', 'Workers added later on the same request don’t need a new approval.', false)}</div>`, { sub: 'Final inspections and who closes work are set on each permit type.' }),
     departments: () => card('Departments', `<div class="stack"><p class="muted small" style="margin:0">Departments take turns approving a request. Rename them here; set how many levels each property needs under Properties.</p>${f.departments.map((d, i) => `<div class="level-row">${F({ id: 'd-' + i, bind: `f.departments.${i}`, attrs: 'aria-label="Department name"' })}<span class="grow"></span>${btn('', { icon: 'trash', v: 'ghost', sm: true, act: 'deptRemove', id: i, title: 'Remove department' })}</div>`).join('')}${btn('Add department', { icon: 'plus', sm: true, act: 'deptAdd' })}${e.dept ? `<span class="err">${ic('alert')}${e.dept}</span>` : ''}</div>`),
@@ -3141,7 +3203,8 @@ ROWMENU.ptype = id => [{ icon: 'edit', label: 'Edit', act: 'typeEdit', id }, { i
 function pTypeEditor(id) {
   if (!isAdmin()) return null;
   const cur = byId(S.permitTypes, id); if (!cur) return null;
-  if (ui.formTab !== 'type-' + id || !ui.form) { ui.form = { t: clone(cur) }; ui.formTab = 'type-' + id; ui.dirty = false; ui.errs = {}; }
+  if (ui.formTab !== 'type-' + id || !ui.form) { ui.form = { t: clone(cur) }; ui.form.t.docs = ui.form.t.docs.filter(d => d.label); ui.formTab = 'type-' + id; ui.dirty = false; ui.errs = {}; }
+  { const pm = ui.form.t.payment; if (pm.model === 'trip' && (!pm.tiers || pm.tiers.length < 2)) pm.tiers = [{ upTo: 1, price: 50 }, { upTo: 2, price: 100 }, { upTo: null, price: 200 }]; if (!pm.tiers) pm.tiers = []; }
   const t = ui.form.t, e = ui.errs, avail = S.departments.filter(d => !t.workflow.includes(d)), pay = t.payment, cur$ = S.settings.currency;
   const path = t.properties.map(pid => { const p = prop(pid); const steps = []; t.workflow.forEach(d => { for (let l = 1; l <= (p.levels[d] || 0); l++) steps.push(`${d} L${l}`); }); return [p.name, steps]; });
   const payBody = !pay.paid ? '' : `<div class="field"><span class="label">How is the fee worked out?</span>${seg('pt-model', 'f.t.payment.model', [['fixed', 'One amount for the permit'], ['employee', 'Per worker'], ['trip', 'Per vehicle trip']], true)}</div>
@@ -3157,14 +3220,14 @@ function pTypeEditor(id) {
   ${card('Payment', `<div class="stack-lg">${sw('pt-paid', 'f.t.payment.paid', 'This is a paid permit', 'The contractor pays after the last approval and gets the QR codes once paid.', true)}${payBody}</div>`)}
   ${card('Approval departments', `<div class="stack"><div class="seq-list">${t.workflow.map((d, i) => `<div class="seq-item"><span class="n">${i + 1}</span><b class="grow">${esc(d)}</b>${btn('', { icon: 'up', sm: true, v: 'ghost', act: 'seqMove', id: i + ':-1', disabled: !i, title: 'Move up' })}${btn('', { icon: 'down', sm: true, v: 'ghost', act: 'seqMove', id: i + ':1', disabled: i === t.workflow.length - 1, title: 'Move down' })}${btn('', { icon: 'x', sm: true, v: 'ghost', act: 'seqRemove', id: i, title: 'Remove' })}</div>`).join('') || '<p class="muted small" style="margin:0">No approvals needed. Requests are approved straight away.</p>'}</div>${avail.length ? `<div class="row">${avail.map(d => btn('Add ' + d, { sm: true, icon: 'plus', act: 'seqAdd', id: d })).join('')}</div>` : ''}
     <div class="preview-panel"><span class="eyebrow xs faint">${ic('eye')} Approval path at each property</span>${path.length ? path.map(([n, s]) => `<div class="row"><b class="small" style="min-width:150px">${esc(n)}</b>${s.length ? s.map((x, i) => `${i ? ic('right', 'faint') : ''}<span class="chip">${esc(x)}</span>`).join('') : '<span class="muted small">No approvers needed</span>'}</div>`).join('') : '<span class="muted small">Choose properties to preview.</span>'}</div></div>`, { sub: 'Departments approve in this order. A property’s levels decide how many people in each department must approve.' })}
-  ${card('Final inspection', `<div class="stack-lg">${sw('pt-cl', 'f.t.closure', 'Close this work with a final inspection', 'When the work is marked as completed, it goes to a department that inspects and closes it. Leave off to close it straight away.', true)}${t.closure ? `<div class="field"><span class="label">Departments that can close this work</span>${S.departments.map(d => `<label class="check"><input type="checkbox" data-closedept value="${esc(d)}" ${t.closureDepartments.includes(d) ? 'checked' : ''}>${esc(d)}</label>`).join('')}<span class="hint">Administrators can always close work.</span></div>` : ''}</div>`)}
+  ${S.settings.finalInspection ? card('Final inspection', `<div class="stack-lg">${sw('pt-cl', 'f.t.closure', 'Close this work with a final inspection', 'When the work is marked as completed, it goes to a department that inspects and closes it. Leave off to close it straight away.', true)}${t.closure ? `<div class="field"><span class="label">Departments that can close this work</span>${S.departments.map(d => `<label class="check"><input type="checkbox" data-closedept value="${esc(d)}" ${t.closureDepartments.includes(d) ? 'checked' : ''}>${esc(d)}</label>`).join('')}<span class="hint">Administrators can always close work.</span></div>` : ''}</div>`) : card('Final inspection', '<p class="muted small" style="margin:0">Final inspections are turned off for this community. Turn them on in Settings, Work rules.</p>')}
   ${card('Maintenance contracts', sw('pt-amc', 'f.t.allowAmc', 'Contractors can mark this as an annual maintenance contract (AMC)', 'They choose how often visits are needed. Once approved it appears under Maintenance contracts and Passes.', false))}
-  ${card('Documents contractors upload', `<div class="stack">${t.docs.map((d, i) => `<div class="slot ${d.label ? '' : 'hidden'}"><div class="slot-head"><b>${esc(d.slot)}</b>${d.label ? badge(d.required ? 'Required' : 'Optional', d.required ? 'info' : 'neutral') : badge('Not used', 'neutral')}</div><div class="grid-2">${F({ id: 'ds-l' + i, label: 'Document name', bind: `f.t.docs.${i}.label`, ph: 'Leave empty to hide this slot', rerender: true })}${F({ id: 'ds-t' + i, label: 'Template for contractors', bind: `f.t.docs.${i}.template`, ph: 'File name, optional', hint: 'A blank form they can download.' })}</div>${d.label ? `<div class="row">${sw('ds-r' + i, `f.t.docs.${i}.required`, 'Required', '', true)}${sw('ds-n' + i, `f.t.docs.${i}.noExpiry`, 'Has no expiry date', '', false)}</div>` : ''}</div>`).join('')}</div>`)}</div>
+  ${card('Documents contractors upload', `<div class="stack">${t.docs.length ? t.docs.map((d, i) => `<div class="slot"><div class="slot-head"><b>Document ${i + 1}</b><span class="row">${badge(d.required ? 'Required' : 'Optional', d.required ? 'info' : 'neutral')}${btn('', { icon: 'trash', v: 'ghost', sm: true, act: 'docRemove', id: i, title: 'Remove this document' })}</span></div><div class="grid-2">${F({ id: 'ds-l' + i, label: 'Document name', bind: `f.t.docs.${i}.label`, ph: 'For example: Scope of Work Form', rerender: false })}${F({ id: 'ds-t' + i, label: 'Template for contractors', bind: `f.t.docs.${i}.template`, ph: 'File name, optional', hint: 'A blank form they can download.' })}</div><div class="row">${sw('ds-r' + i, `f.t.docs.${i}.required`, 'Required', '', true)}${sw('ds-n' + i, `f.t.docs.${i}.noExpiry`, 'Has no expiry date', '', false)}</div></div>`).join('') : '<p class="muted small" style="margin:0">No documents are asked for.</p>'}<div class="row between">${btn('Add a document', { sm: true, icon: 'plus', act: 'docAdd', disabled: t.docs.length >= 20 })}<span class="xs faint">${t.docs.length} of 20</span></div>${e.docs ? `<span class="err">${ic('alert')}${e.docs}</span>` : ''}</div></div>`)}</div>
   <div class="savebar" id="savebar" role="region" aria-label="Unsaved changes" ${ui.dirty ? '' : 'hidden'}>${ic('info')}<span class="small">You have unsaved changes</span>${btn('Discard', { v: 'ghost', sm: true, act: 'typeDiscard', id })}${btn('Save permit type', { v: 'primary', sm: true, act: 'typeSave', id })}</div>`;
 }
 registerPrefix('ptype-', pTypeEditor);
 document.addEventListener('change', e => { const el = e.target; if (el.dataset && el.dataset.closedept !== undefined && ui.form && ui.form.t) { const a = ui.form.t.closureDepartments; ui.form.t.closureDepartments = el.checked ? uniq([...a, el.value]) : a.filter(x => x !== el.value); afterBind('f.x'); } });
-const newType = () => ({ id: uid('t'), name: 'New permit type', desc: '', properties: [], maxEmployees: 5, maxDays: 14, timeIn: '08:00', timeOut: '18:00', payment: { paid: false, model: 'fixed', amount: 0, tiers: [{ upTo: 1, price: 50 }, { upTo: null, price: 100 }] }, closure: false, closureDepartments: [], allowAmc: false, workflow: [], docs: [1, 2, 3].map(n => ({ slot: 'Document ' + n, label: '', required: false, noExpiry: true, template: '' })) });
+const newType = () => ({ id: uid('t'), name: 'New permit type', desc: '', properties: [], maxEmployees: 5, maxDays: 14, timeIn: '08:00', timeOut: '18:00', payment: { paid: false, model: 'fixed', amount: 0, tiers: [{ upTo: 1, price: 50 }, { upTo: null, price: 100 }] }, closure: false, closureDepartments: [], allowAmc: false, workflow: [], docs: [{ slot: 'Document 1', label: 'Scope of Work Form', required: true, noExpiry: true, template: '' }] });
 Object.assign(ACT, {
   typeAdd() { const t = newType(); S.permitTypes.push(t); persist(); go('ptype-' + t.id); },
   typeEdit(t) { ui.pop = null; go('ptype-' + t.dataset.id); },
@@ -3173,15 +3236,17 @@ Object.assign(ACT, {
   seqAdd(t) { ui.form.t.workflow.push(t.dataset.id); ui.dirty = true; render(); },
   seqRemove(t) { ui.form.t.workflow.splice(+t.dataset.id, 1); ui.dirty = true; render(); },
   seqMove(t) { const [i, d] = t.dataset.id.split(':').map(Number), w = ui.form.t.workflow, j = i + d; [w[i], w[j]] = [w[j], w[i]]; ui.dirty = true; render(); },
-  tierAdd() { const tiers = ui.form.t.payment.tiers, last = tiers.pop(), prev = tiers.length ? tiers[tiers.length - 1].upTo : 0; tiers.push({ upTo: prev + 1, price: (last ? last.price : 100) }, last); ui.dirty = true; render(); },
+  docAdd() { const d = ui.form.t.docs; if (d.length >= 20) return; d.push({ slot: 'Document ' + (d.length + 1), label: '', required: false, noExpiry: true, template: '' }); ui.dirty = true; render(); },
+  docRemove(t) { ui.form.t.docs.splice(+t.dataset.id, 1); ui.dirty = true; render(); },
+  tierAdd() { const pay = ui.form.t.payment; if (!pay.tiers || pay.tiers.length < 2) pay.tiers = [{ upTo: 1, price: 50 }, { upTo: null, price: 200 }]; const tiers = pay.tiers, last = tiers.pop(), prev = tiers.length ? +tiers[tiers.length - 1].upTo || 0 : 0; tiers.push({ upTo: prev + 1, price: last.price }, last); ui.dirty = true; render(); },
   tierRemove(t) { ui.form.t.payment.tiers.splice(+t.dataset.id, 1); ui.dirty = true; render(); },
   typeDiscard(t) { openConfirm({ title: 'Discard unsaved changes?', message: 'Your edits to this permit type will be lost.', confirmText: 'Discard changes', tone: 'danger', onConfirm: () => { ui.form = null; ui.formTab = null; ui.dirty = false; go('settings-types'); } }); },
   typeSave(t) {
-    const f = ui.form.t, e = {}, pay = f.payment; if (!f.name.trim()) e.name = 'Enter a name.'; if (!f.properties.length) e.properties = 'Choose at least one property.';
+    const f = ui.form.t, e = {}, pay = f.payment; f.docs = f.docs.filter(d => d.label.trim()); if (f.docs.length > 20) e.docs = 'Up to 20 documents.'; if (!f.name.trim()) e.name = 'Enter a name.'; if (!f.properties.length) e.properties = 'Choose at least one property.';
     if (pay.paid) { if (pay.model === 'trip') { const u = pay.tiers.slice(0, -1).map(x => +x.upTo); if (u.some(x => !(x > 0)) || u.some((x, i) => i && x <= u[i - 1])) e.tiers = 'Each weight band must be heavier than the one before.'; else if (pay.tiers.some(x => !(+x.price > 0))) e.tiers = 'Enter a price for every band.'; } else if (!(+pay.amount > 0)) e.amount = 'Enter the amount.'; }
     ui.errs = e;
     if (Object.keys(e).length) { toast('Fix the highlighted fields before saving.', { err: true }); render(); return; }
-    openConfirm({ title: 'Save this permit type?', message: 'New requests use these rules. Requests already waiting keep the approval steps they started with.', confirmText: 'Save permit type', tone: 'ok', icon: 'save', onConfirm: () => { const n = { ...f, name: f.name.trim(), maxEmployees: +f.maxEmployees || 0, maxDays: +f.maxDays || 0, payment: { ...pay, paid: !!pay.paid, amount: +pay.amount || 0, tiers: pay.tiers.map(x => ({ upTo: x.upTo == null ? null : +x.upTo, price: +x.price })) } }; if (n.payment.model === 'trip') n.payment.amount = 0; S.requests.filter(r => ['review', 'payment'].includes(r.status) && r.type === n.id && !r.workflow).forEach(r => { r.workflow = compileWorkflow(r.type, r.property); }); Object.assign(byId(S.permitTypes, n.id), n); ui.dirty = false; ui.form = null; ui.formTab = null; persist(); toast('Permit type saved.'); go('settings-types'); } });
+    openConfirm({ title: 'Save this permit type?', message: 'New requests use these rules. Requests already waiting keep the approval steps they started with.', confirmText: 'Save permit type', tone: 'ok', icon: 'save', onConfirm: () => { const n = { ...f, name: f.name.trim(), maxEmployees: +f.maxEmployees || 0, maxDays: +f.maxDays || 0, docs: f.docs.map((d, i) => ({ ...d, slot: 'Document ' + (i + 1), label: d.label.trim() })), payment: { ...pay, paid: !!pay.paid, amount: +pay.amount || 0, tiers: pay.tiers.map(x => ({ upTo: x.upTo == null ? null : +x.upTo, price: +x.price })) } }; if (n.payment.model === 'trip') n.payment.amount = 0; S.requests.filter(r => ['review', 'payment'].includes(r.status) && r.type === n.id && !r.workflow).forEach(r => { r.workflow = compileWorkflow(r.type, r.property); }); Object.assign(byId(S.permitTypes, n.id), n); ui.dirty = false; ui.form = null; ui.formTab = null; persist(); toast('Permit type saved.'); go('settings-types'); } });
   },
 });
 
@@ -3213,10 +3278,10 @@ const wpSearch = q => {
 const wpNav = (extra) => [
   { group: '', items: [{ go: 'dashboard', icon: 'home', label: 'Dashboard' }] },
   { group: 'Work permits', items: [
-    { go: 'queue', icon: 'inbox', label: isAdmin() ? 'Review queue' : 'My queue', show: () => !isReviewer(), badge: () => isAdmin() ? pending().length : myQueue().length },
+    { go: 'queue', icon: 'inbox', label: 'Pending approval', show: () => !isReviewer(), badge: () => isAdmin() ? pending().length : myQueue().length },
     { go: 'calendar', icon: 'calendar', label: 'Calendar' },
     { go: 'passes', icon: 'ticket', label: 'Passes', match: /^passes|^pass-|^issue-pass/ },
-    { go: 'inspections', icon: 'clipboard', label: 'Final inspections', match: /^inspection/, badge: () => isReviewer() ? 0 : S.inspections.filter(i => i.status === 'requested' && inScope(me(), byId(S.requests, i.requestId))).length },
+    { go: 'inspections', icon: 'clipboard', label: 'Final inspections', match: /^inspection/, show: () => !!S.settings.finalInspection, badge: () => isReviewer() ? 0 : S.inspections.filter(i => i.status === 'pending' && inScope(me(), byId(S.requests, i.requestId))).length },
     { go: 'logs', icon: 'list', label: 'Access logs', show: canViewLogs }] },
   ...(extra || [])];
 const adminExtra = () => [
@@ -3229,7 +3294,7 @@ const adminExtra = () => [
   { group: 'Administration', items: [
     { go: 'team', icon: 'users', label: 'Team & roles' },
     { go: 'settings', icon: 'gear', label: 'Settings', match: /^settings|^ptype-|^terms-/ }] }];
-const titleMap = r => ({ dashboard: 'Dashboard', queue: 'Review queue', calendar: 'Calendar', passes: 'Passes', inspections: 'Final inspections', logs: 'Access logs', contractors: 'Contractors', amc: 'Maintenance contracts', properties: 'Properties', reports: 'Reports & insights', team: 'Team & roles', payments: 'Payments', settings: 'Settings', profile: 'My profile', 'issue-pass': 'Issue a pass' }[r] || (r.startsWith('review-') ? r.slice(7) : r.startsWith('settings') ? 'Settings' : r.startsWith('pass-') ? r.slice(5) : r.startsWith('contractor-') ? 'Contractor' : 'Buzzin'));
+const titleMap = r => ({ dashboard: 'Dashboard', queue: 'Pending approval', calendar: 'Calendar', passes: 'Passes', inspections: 'Final inspections', logs: 'Access logs', contractors: 'Contractors', amc: 'Maintenance contracts', properties: 'Properties', reports: 'Reports & insights', team: 'Team & roles', payments: 'Payments', settings: 'Settings', profile: 'My profile', 'issue-pass': 'Issue a pass' }[r] || (r.startsWith('review-') ? r.slice(7) : r.startsWith('settings') ? 'Settings' : r.startsWith('pass-') ? r.slice(5) : r.startsWith('contractor-') ? 'Contractor' : 'Buzzin'));
 const wpBase = {
   theme: 'ws-permits', home: 'dashboard', searchPh: 'Search requests, passes or companies', wide: false, search: wpSearch, titleFor: titleMap,
   userName: () => me().name, userSub: () => me().title,
@@ -3247,7 +3312,7 @@ const CFG_APPROVER = {
   ...wpBase,
   id: 'approver', title: 'Work permits', roleLabel: 'Approver', userId: 'u2', docTitle: 'Buzzin · Approver', homeLabel: 'Dashboard',
   get nav() { return wpNav(); },
-  bottom: [['dashboard', 'Home', 'home'], ['queue', 'My queue', 'inbox'], ['calendar', 'Calendar', 'calendar'], ['passes', 'Passes', 'ticket', /^passes|^pass-/]],
+  bottom: [['dashboard', 'Home', 'home'], ['queue', 'Pending', 'inbox'], ['calendar', 'Calendar', 'calendar'], ['passes', 'Passes', 'ticket', /^passes|^pass-/]],
   scopeCard: () => { const u = me(); return `<div class="side-scope"><b>${esc(u.dept)} · Level ${u.level}</b><div class="row"><span class="tagline">${ic('userCheck')} Approver</span></div><span>${esc(u.properties.map(p => prop(p).name).join(', '))}</span></div>`; },
   notifFilter: n => /^(review|inspection)-/.test(n.go),
 };

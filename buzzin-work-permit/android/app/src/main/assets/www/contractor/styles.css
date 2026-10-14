@@ -782,3 +782,10 @@ button.select-row:disabled { cursor: not-allowed; }
 .drawer-overlay { grid-template-rows: minmax(0, 1fr); }
 .drawer { max-height: 100%; min-height: 0; overflow: hidden; }
 .drawer .modal-body { min-height: 0; overflow-y: auto; }
+
+/* Final inspection: attached file names */
+.tl-files { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.file-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 3px 9px 3px 7px; border-radius: 999px; background: var(--surface-3); border: 1px solid var(--border); font-size: 12.5px; font-weight: 550; color: var(--text-2); overflow-wrap: anywhere; }
+.file-chip svg.i { width: 13px; height: 13px; flex: none; }
+.alert .tl-files { margin-top: 6px; }
+.dl dd .tl-files { margin-top: 0; }

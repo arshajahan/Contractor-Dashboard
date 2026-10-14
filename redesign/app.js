@@ -7,7 +7,7 @@
 // The PDF viewer runs on the page itself (vendor/pdf.worker.min.js is loaded as a script), so it also works from a local file.
 if (window.pdfjsLib) window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
 const TODAY = '2026-10-12';
-const KEY = 'buzzin-redesign-v4';
+const KEY = 'buzzin-redesign-v5';
 const ICONS = {
   home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   pass: '<circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
@@ -90,7 +90,7 @@ function expiry(date, noExp) {
 const badge = (label, tone = 'neutral') => `<span class="badge badge-${tone}"><i></i>${esc(label)}</span>`;
 const STATUS = {
   draft: ['Draft', 'neutral'], review: ['Under review', 'info'], changes: ['Changes requested', 'warn'],
-  payment: ['Payment pending', 'warn'], approved: ['Approved', 'ok'], inspection: ['Inspection requested', 'info'], completed: ['Completed', 'neutral'],
+  payment: ['Payment pending', 'warn'], approved: ['Approved', 'ok'], inspection: ['Final inspection', 'info'], completed: ['Completed', 'neutral'],
   expired: ['Expired', 'bad'], revoked: ['Revoked', 'bad'], suspended: ['Suspended', 'bad'], cancelled: ['Cancelled', 'neutral'],
 };
 const statusBadge = s => badge(...(STATUS[s] || [s, 'neutral']));
@@ -168,9 +168,16 @@ function blankDraft(prefill) {
     docs: {}, ticks: {}, signer: { name: S ? S.profile.name : '', position: S ? S.profile.title : '', sig: null, auth: false }, consent: false, reached: 0, saved: TODAY,
   }, prefill || {});
 }
+// Details the permit PDF shows. Real submissions store these too (see submitRequest).
+function seedExtras(p) {
+  if (p.kind !== 'work') return p;
+  if (!p.description) p.description = `${p.title} at ${(p.units || []).join(', ')}.`;
+  if (!['cancelled'].includes(p.status) && !p.signed) p.signed = { name: 'Contractor terms & community guidelines', version: 3, by: 'Alex Morgan', position: 'Operations manager', at: addDays(p.from, -9) + 'T09:00' };
+  return p;
+}
 function seed() {
   return {
-    v: 4, community: 'buzzin', nextRef: 1052, nextVp: 2211, nextInv: 413, rules: { workersAfterApproval: true },
+    v: 5, community: 'buzzin', nextRef: 1052, nextVp: 2211, nextInv: 413, rules: { workersAfterApproval: true, finalInspection: true },
     communities: [
       { id: 'buzzin', name: 'Buzzin community', area: 'Dubai Silicon Oasis', status: 'active', since: '2025-02-11', email: 'permits@buzzin-community.example', logo: { data: 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22240%22%20height%3D%2272%22%20viewBox%3D%220%200%20240%2072%22%3E%3Ccircle%20cx%3D%2236%22%20cy%3D%2236%22%20r%3D%2226%22%20fill%3D%22%230E7C66%22/%3E%3Cpath%20d%3D%22M23%2042%2036%2022l13%2020z%22%20fill%3D%22%23fff%22/%3E%3Crect%20x%3D%2230%22%20y%3D%2238%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23fff%22/%3E%3Ctext%20x%3D%2274%22%20y%3D%2234%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-weight%3D%22700%22%20font-size%3D%2224%22%20fill%3D%22%230B3B32%22%3EBuzzin%3C/text%3E%3Ctext%20x%3D%2275%22%20y%3D%2255%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2213%22%20letter-spacing%3D%223%22%20fill%3D%22%230E7C66%22%3ECOMMUNITY%3C/text%3E%3C/svg%3E', tone: 'dark', bg: 'auto' } },
       { id: 'marina', name: 'Marina Gate', area: 'Dubai Marina', status: 'active', since: '2025-08-03', email: 'fm@marinagate.example', logo: { data: 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22240%22%20height%3D%2272%22%20viewBox%3D%220%200%20240%2072%22%3E%3Cpath%20d%3D%22M10%2044c10-10%2020-10%2030%200s20%2010%2030%200%22%20stroke%3D%22%23fff%22%20stroke-width%3D%225%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22/%3E%3Cpath%20d%3D%22M10%2030c10-10%2020-10%2030%200s20%2010%2030%200%22%20stroke%3D%22%23fff%22%20stroke-width%3D%225%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%20opacity%3D%22.6%22/%3E%3Ctext%20x%3D%2284%22%20y%3D%2233%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-weight%3D%22700%22%20font-size%3D%2222%22%20letter-spacing%3D%221%22%20fill%3D%22%23fff%22%3EMARINA%3C/text%3E%3Ctext%20x%3D%2285%22%20y%3D%2255%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2215%22%20letter-spacing%3D%225%22%20fill%3D%22%23fff%22%3EGATE%3C/text%3E%3C/svg%3E', tone: 'light', bg: 'auto' } },
@@ -204,7 +211,27 @@ function seed() {
           { step: 'Security · Level 2', by: 'Daniel Okoro', at: '2026-10-01T16:00', note: 'Method statement reviewed.', outcome: 'Approved' },
           { step: 'Operations · Level 1', by: 'Priya Rao', at: '2026-10-02T10:45', note: 'Roof access booked.', outcome: 'Approved' }] },
       { id: 'VP-2210', community: 'buzzin', kind: 'visitor', title: 'Site survey visit', type: 'visitor', property: 'Buzzin residences', units: ['Unit 305'], from: '2026-10-15', to: '2026-10-15', hours: '10:00–12:00', status: 'approved', updated: '2026-10-06', workers: ['p2'], vehicles: [], materials: 0, docs: [] },
-      { id: 'BZ-1029', community: 'buzzin', kind: 'work', title: 'Plumbing repair', type: 'maintenance', property: 'Buzzin residences', units: ['Unit 204'], from: '2026-09-21', to: '2026-09-23', hours: '09:00–15:00', status: 'completed', updated: '2026-09-24', workers: ['p1'], vehicles: ['v1'], materials: 3, docs: ['Scope of Work Form'] },
+      { id: 'BZ-1029', community: 'buzzin', kind: 'work', title: 'Plumbing repair', type: 'maintenance', property: 'Buzzin residences', units: ['Unit 204'], from: '2026-09-21', to: '2026-09-23', hours: '09:00–15:00', status: 'completed', updated: '2026-09-24', workers: ['p1'], vehicles: ['v1'], materials: 3, docs: ['Scope of Work Form'],
+        description: 'Replace the leaking main shut-off valve in the kitchen and bathroom and test the water pressure.',
+        approvals: [
+          { step: 'Security · Level 1', by: 'Omar Siddiqui', at: '2026-09-17T09:30', note: 'Documents match the permit type.', outcome: 'Approved' },
+          { step: 'Operations · Level 1', by: 'Priya Rao', at: '2026-09-18T14:10', note: 'Water shut-off is booked with the building team.', outcome: 'Approved' }],
+        inspection: { status: 'closed', notes: 'Valve replaced and pressure tested. Area cleaned.', photos: ['valve-after.jpg'], at: '2026-09-23T16:20',
+          rounds: [{ at: '2026-09-24T10:30', by: 'Priya Rao', decision: 'complete', comment: 'Valve replaced and pressure tested. Area is clean.', files: [] }],
+          outcome: 'Completed', remark: 'Valve replaced and pressure tested. Area is clean.', closedBy: 'Priya Rao', closedAt: '2026-09-24T10:30', files: [] } },
+      { id: 'BZ-1038', community: 'buzzin', kind: 'work', title: 'Lobby light repair', type: 'maintenance', property: 'Buzzin offices', units: ['Common area – Lobby'], from: '2026-10-05', to: '2026-10-07', hours: '09:00–15:00', status: 'inspection', updated: '2026-10-09', workers: ['p1'], vehicles: [], materials: 2, docs: ['Scope of Work Form'],
+        description: 'Replace six failed ceiling lights in the main lobby.',
+        approvals: [
+          { step: 'Security · Level 1', by: 'Omar Siddiqui', at: '2026-10-01T09:30', note: 'Worker ID checked.', outcome: 'Approved' },
+          { step: 'Operations · Level 1', by: 'Priya Rao', at: '2026-10-02T11:15', note: 'Work is outside peak lobby hours.', outcome: 'Approved' }],
+        inspection: { status: 'pending', notes: 'Lights replaced and tested. Area cleaned.', photos: ['lobby-lights.jpg'], at: '2026-10-09T11:40', rounds: [] } },
+      { id: 'BZ-1034', community: 'buzzin', kind: 'work', title: 'Ceiling tile repair', type: 'maintenance', property: 'Buzzin offices', units: ['Unit 512'], from: '2026-10-01', to: '2026-10-06', hours: '09:00–17:00', status: 'inspection', updated: '2026-10-09', workers: ['p2', 'p5'], vehicles: [], materials: 3, docs: ['Scope of Work Form'],
+        description: 'Replace water-damaged ceiling tiles in the open-plan area.',
+        approvals: [
+          { step: 'Security · Level 1', by: 'Omar Siddiqui', at: '2026-09-28T09:30', note: 'Documents match the permit type.', outcome: 'Approved' },
+          { step: 'Operations · Level 1', by: 'Priya Rao', at: '2026-09-29T10:05', note: 'Approved.', outcome: 'Approved' }],
+        inspection: { status: 'waiting', notes: 'Ceiling tiles replaced.', photos: [], at: '2026-10-07T15:10',
+          rounds: [{ at: '2026-10-08T10:20', by: 'Priya Rao', decision: 'not_ready', comment: 'Ceiling tiles near the window are not aligned. Fix and send again.', files: ['snag-photo-1.jpg'] }] } },
       { id: 'BZ-1017', community: 'buzzin', kind: 'work', title: 'Glass partition installation', type: 'fitout', property: 'Buzzin offices', units: ['Unit 410'], from: '2026-08-10', to: '2026-08-20', hours: '08:00–18:00', status: 'expired', updated: '2026-08-21', workers: ['p2', 'p4'], vehicles: ['v3'], tripsBy: { v3: 1 }, materials: 4, docs: ['Scope of Work Form', 'Approved layout drawings'],
         approvals: [
           { step: 'Security · Level 1', by: 'Omar Siddiqui', at: '2026-08-03T09:30', note: 'Documents match the permit type.', outcome: 'Approved' },
@@ -214,7 +241,7 @@ function seed() {
       { id: 'MG-0310', community: 'marina', kind: 'work', title: 'Balcony waterproofing', type: 'general', property: 'Tower A', units: ['Apt 2104'], from: '2026-10-11', to: '2026-10-18', hours: '09:00–17:00', status: 'approved', updated: '2026-10-03', workers: ['p2'], vehicles: ['v2'], materials: 3, docs: ['Scope of Work Form'] },
       { id: 'MG-0305', community: 'marina', kind: 'work', title: 'AC duct cleaning', type: 'maintenance', property: 'Tower B', units: ['Apt 1502'], from: '2026-10-20', to: '2026-10-21', hours: '09:00–13:00', status: 'review', updated: '2026-10-08', workers: ['p1'], vehicles: ['v1'], materials: 1, docs: ['Scope of Work Form'] },
       { id: 'PV-0088', community: 'palm', kind: 'work', title: 'Pool pump replacement', type: 'maintenance', property: 'Villa cluster 3', units: ['Villa 14'], from: '2026-09-02', to: '2026-09-03', hours: '09:00–17:00', status: 'completed', updated: '2026-09-04', workers: ['p1'], vehicles: ['v1'], materials: 2, docs: ['Scope of Work Form'] },
-    ],
+    ].map(seedExtras),
     people: [
       { id: 'p1', name: 'Alex Morgan', role: 'HVAC technician', phone: '+971 50 000 0001', email: 'alex@samplecontracting.ae', idType: 'Emirates ID', idNo: '784-1990-1234567-1', idExpiry: '2027-03-31', file: 'alex-morgan-eid.pdf' },
       { id: 'p2', name: 'Priya Nair', role: 'Site supervisor', phone: '+971 50 000 0002', email: 'priya@samplecontracting.ae', idType: 'Emirates ID', idNo: '784-1988-7654321-2', idExpiry: '2027-08-14', file: 'priya-nair-eid.pdf' },
@@ -270,7 +297,7 @@ function seed() {
 let S = null;
 try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
 // Saved preview data must have the current shape. Anything else (older versions, partial or broken data) starts fresh.
-const validState = x => !!(x && x.v === 4 && ['communities', 'permits', 'people', 'vehicles', 'companyDocs', 'forms', 'notifications', 'directory', 'invoices'].every(k => Array.isArray(x[k])) && x.rules && x.communities.length && x.company && x.profile && x.billing && x.notifPrefs && x.visitor);
+const validState = x => !!(x && x.v === 5 && ['communities', 'permits', 'people', 'vehicles', 'companyDocs', 'forms', 'notifications', 'directory', 'invoices'].every(k => Array.isArray(x[k])) && x.rules && x.communities.length && x.company && x.profile && x.billing && x.notifPrefs && x.visitor);
 if (!validState(S)) { S = null; S = seed(); } // seed() must not read the broken data
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { if (e && e.name === 'QuotaExceededError') toast('This browser is out of space for the preview. Use a smaller PDF.', { err: true }); return false; } };
 if (S.draft && S.draft.docs) Object.values(S.draft.docs).forEach(x => { if (x && x.file && x.file.status === 'checking') { x.file.status = 'done'; delete x.file.step; } });
@@ -516,7 +543,7 @@ function permitTable(list, compact) {
     <td data-m="hide" class="num">${p.draft && !p.from ? '<span class="faint">Not set</span>' : range(p.from, p.to)}</td>
     <td data-m="side">${statusBadge(p.status)}</td>
     ${compact ? '' : `<td data-m="hide" class="faint num">${fmt(p.updated)}</td>`}
-    <td class="t-actions">${btn('', { v: 'ghost', sm: true, icon: 'more', act: 'rowMenu', id: p.id, title: `Actions for ${p.title}` })}</td>
+    <td class="t-actions">${btn('View', { v: 'secondary', sm: true, go: p.draft ? 'details' : 'permit-' + p.id, title: `View ${p.title}` })}</td>
   </tr>`).join('')}</tbody></table></div>`;
 }
 function rowMenuItems(p) {
@@ -526,14 +553,57 @@ function rowMenuItems(p) {
   out.push(it('eye', 'View details', `data-go="permit-${p.id}"`));
   if (p.status === 'changes') out.push(it('edit', 'Update and resubmit', `data-act="updatePermit" data-id="${p.id}"`));
   if (p.status === 'payment') out.push(it('receipt', 'Pay now', `data-act="payNow" data-id="${p.id}"`));
-  if (p.status === 'approved') out.push(it('download', 'Download permit', `data-act="download" data-id="${p.id}"`));
+  if (canDownload(p)) out.push(it('download', 'Download permit', `data-act="download" data-id="${p.id}"`));
   if (canComplete(p)) out.push(it('clipboard', 'Mark as completed', `data-act="markComplete" data-id="${p.id}"`));
   if (p.kind === 'work') out.push(it('copy', 'Duplicate as new request', `data-act="duplicate" data-id="${p.id}"`));
   out.push(it('mail', 'Contact community', 'data-go="help"'));
   if (['review', 'changes', 'payment', 'approved'].includes(p.status)) { out.push('<div class="pop-sep"></div>'); out.push(it('x', p.status === 'approved' ? 'Cancel pass' : 'Withdraw request', `data-act="cancelPermit" data-id="${p.id}"`, true)); }
   return out.join('');
 }
-const canComplete = p => p.kind === 'work' && !p.draft && ['approved', 'expired', 'revoked', 'suspended'].includes(p.status);
+// Final inspection can be switched off by the community (S.rules.finalInspection).
+const inspOn = () => S.rules.finalInspection !== false;
+const canDownload = p => !p.draft && ['approved', 'inspection', 'completed', 'expired', 'revoked', 'suspended'].includes(p.status);
+// Only work that has started can be marked as completed (not upcoming permits).
+const canComplete = p => inspOn() && p.kind === 'work' && !p.draft && ['approved', 'expired', 'revoked', 'suspended'].includes(p.status) && !!p.from && p.from <= TODAY;
+const DECISION = { not_ready: ['Not complete yet', 'warn'], complete: ['Completed', 'ok'], incomplete: ['Closed as incomplete', 'bad'], resubmitted: ['Marked as completed again', 'ok'] };
+// Closing details of a closed inspection: the final community round, or the summary fields on the inspection.
+function closureOf(p) {
+  const i = p.inspection; if (!i || i.status !== 'closed') return null;
+  const r = [...(i.rounds || [])].reverse().find(x => x.decision === 'complete' || x.decision === 'incomplete');
+  return { outcome: i.outcome || (r && r.decision === 'incomplete' ? 'Closed as incomplete' : 'Completed'), remark: r ? r.comment : (i.remark || ''), by: r ? r.by : (i.closedBy || ''), at: r ? r.at : (i.closedAt || ''), files: r ? (r.files || []) : (i.files || []) };
+}
+const fileChips = (arr = []) => arr.length ? `<span class="tl-files">${arr.map(f => `<span class="file-chip">${ic('file')}${esc(f)}</span>`).join('')}</span>` : '';
+const timelineHtml = items => `<div class="timeline">${items.map(i => `<div class="tl ${i.t}"><span class="dot">${i.t === 'done' ? ic('check') : i.t === 'bad' ? ic('x') : i.t === 'warn' ? ic('alert') : ''}</span><div class="grow"><b>${i.title}</b><span>${i.sub}</span>${i.note ? `<q class="tl-note">${esc(i.note)}</q>` : ''}${fileChips(i.files)}</div></div>`).join('')}</div>`;
+function inspectionTimeline(p) {
+  const i = p.inspection, items = [{ t: 'done', title: 'Marked as completed', sub: `${esc(S.profile.name)} · ${fmtDT(i.at)}`, note: i.notes, files: i.photos }];
+  (i.rounds || []).forEach(r => { const [label, tone] = DECISION[r.decision] || [r.decision, 'neutral']; items.push({ t: tone === 'ok' ? 'done' : tone === 'bad' ? 'bad' : 'warn', title: label, sub: `${esc(r.by)} · ${fmtDT(r.at)}`, note: r.comment, files: r.files }); });
+  if (i.status === 'pending') items.push({ t: 'now', title: 'Community review', sub: 'The community will check the work and reply here.' });
+  if (i.status === 'waiting') items.push({ t: 'now', title: 'Waiting for you', sub: 'Fix the items above, then mark it as completed again.' });
+  return timelineHtml(items);
+}
+function inspectionCards(p) {
+  const i = p.inspection; if (!i) return '';
+  const cl = closureOf(p);
+  const rep = cl ? card('Closure report', `<dl class="dl">
+      <dt>Outcome</dt><dd>${badge(cl.outcome, cl.outcome === 'Completed' ? 'ok' : 'bad')}</dd>
+      <dt>Closing remark</dt><dd>${esc(cl.remark || '—')}</dd>
+      <dt>Closed by</dt><dd>${esc(cl.by || '—')}</dd>
+      <dt>Closed on</dt><dd>${fmtDT(cl.at)}</dd>
+      <dt>Attached files</dt><dd>${cl.files.length ? fileChips(cl.files) : '<span class="faint">None</span>'}</dd></dl>`, { foot: btn('View report', { sm: true, icon: 'eye', act: 'viewClosure', id: p.id }) + btn('Download report PDF', { sm: true, icon: 'download', act: 'downloadClosure', id: p.id }) }) : '';
+  return rep + card('Final inspection', inspectionTimeline(p), { id: 'final-inspection', sub: i.status === 'closed' ? 'Closed' : i.status === 'waiting' ? 'Waiting for you' : 'Waiting for the community' });
+}
+function closureHtml(p) {
+  const i = p.inspection, cl = closureOf(p), t = typeOf(p.type), c = communityOf(p.community);
+  const list = a => a.length ? a.map(x => `<div>${x}</div>`).join('') : '<span class="faint">None</span>';
+  const ws = [...(p.workers || []).map(person), ...(p.extraWorkers || []).map(x => person(x.id))].filter(Boolean).map(w => esc(`${w.name} · ${w.role}`));
+  const vs = (p.vehicles || []).map(vehicle).filter(Boolean).map(v => esc(`${v.plate} · ${v.make}`));
+  return `<div class="stack">
+    <div class="row between" style="flex-wrap:wrap"><div><b>${esc(p.title)}</b><div class="xs faint"><span class="mono">${esc(p.id)}</span> · ${esc(t.name)}</div></div>${badge(cl.outcome, cl.outcome === 'Completed' ? 'ok' : 'bad')}</div>
+    <dl class="dl"><dt>Community</dt><dd>${esc(c.name)}</dd><dt>Location</dt><dd>${esc(p.property)} · ${esc(p.units.join(', '))}</dd><dt>Work dates</dt><dd>${range(p.from, p.to)} · ${esc(p.hours || '')}</dd><dt>Workers</dt><dd>${list(ws)}</dd><dt>Vehicles</dt><dd>${list(vs)}</dd></dl>
+    <div><span class="eyebrow">Contractor completion notes</span><q class="tl-note">${esc(i.notes || 'No notes')}</q>${fileChips(i.photos)}</div>
+    <div><span class="eyebrow">Inspection history</span>${inspectionTimeline(p)}</div>
+    <div><span class="eyebrow">Closing remark</span><q class="tl-note">${esc(cl.remark || '—')}</q><p class="xs faint" style="margin-top:6px">${esc(cl.by)} · ${fmtDT(cl.at)}</p></div></div>`;
+}
 function pPermits() {
   const P = passesHere();
   const tabs = [['all', 'All'], ['action', 'Needs action'], ['review', 'Under review'], ['approved', 'Approved'], ['stopped', 'Revoked & suspended'], ['past', 'Past']];
@@ -599,10 +669,14 @@ function approvalTimeline(p) {
   else if (!['cancelled'].includes(p.status)) items.push({ t: '', title: 'Pass issued', sub: 'After approval' + (fee.total > 0 ? ' and payment' : '') });
   if (p.status === 'revoked' || p.status === 'suspended') items.push({ t: 'bad', title: p.status === 'revoked' ? 'Revoked by the community' : 'Suspended by the community', sub: p.revokedAt ? fmt(p.revokedAt) : fmt(p.updated), note: p.message });
   if (p.status === 'completed') items.push({ t: 'done', title: 'Work completed', sub: fmt(p.updated) });
-  if (p.status === 'inspection') items.push({ t: 'now', title: 'Final inspection requested', sub: 'The community will confirm a time.' });
+  if (p.status === 'inspection') items.push(p.inspection && p.inspection.status === 'waiting' ? { t: 'warn', title: 'Final inspection: not complete yet', sub: 'Fix the work and mark it as completed again.' } : { t: 'now', title: 'Final inspection', sub: 'The community is checking the work.' });
   if (p.status === 'expired') items.push({ t: 'bad', title: 'Pass expired', sub: 'The work dates have passed.' });
   if (p.status === 'cancelled') items.push({ t: 'bad', title: 'Cancelled', sub: fmt(p.updated) });
   return `<div class="timeline">${items.map(i => `<div class="tl ${i.t}"><span class="dot">${i.t === 'done' ? ic('check') : i.t === 'bad' ? ic('x') : i.t === 'warn' ? ic('alert') : ''}</span><div class="grow"><b>${i.title}</b><span>${i.sub}</span>${i.note ? `<q class="tl-note">${esc(i.note)}</q>` : ''}</div></div>`).join('')}</div>`;
+}
+function waitingAlert(p) {
+  const r = [...(p.inspection.rounds || [])].reverse().find(x => x.decision === 'not_ready') || {};
+  return alertBox('warn', 'Not complete yet', `${esc(communityOf(p.community).name)}${r.by ? ' (' + esc(r.by) + ')' : ''} says: “${esc(r.comment || 'Please fix the work and send it again.')}”${(r.files || []).length ? `<br>${fileChips(r.files)}` : ''}`, inspOn() ? btn("I've fixed it, mark as completed again", { v: 'primary', sm: true, icon: 'clipboard', act: 'resubmitInspection', id: p.id }) : '');
 }
 function feeLines(f) { return `<div class="fee-lines">${f.lines.map(l => `<div><span>${esc(l.label)}</span><b>${aed(l.amount)}</b></div>`).join('')}<div class="total"><span>Total</span><b>${aed(f.total)}</b></div></div>`; }
 function pPermit(id) {
@@ -611,7 +685,7 @@ function pPermit(id) {
   const t = typeOf(p.type), fee = feeFor(p), inv = invoiceOf(p);
   const actions = [];
   if (p.status === 'payment') actions.push(btn('Pay now', { v: 'primary', icon: 'receipt', act: 'payNow', id: p.id }));
-  if (p.status === 'approved') actions.push(btn('Download permit', { v: p.kind === 'work' ? 'secondary' : 'primary', icon: 'download', act: 'download', id: p.id }));
+  if (canDownload(p)) actions.push(btn('Download permit', { v: p.kind === 'work' ? 'secondary' : 'primary', icon: 'download', act: 'download', id: p.id }));
   if (canComplete(p)) actions.push(btn('Mark as completed', { v: 'secondary', icon: 'clipboard', act: 'markComplete', id: p.id }));
   if (p.status === 'changes') actions.push(btn('Update and resubmit', { v: 'primary', icon: 'edit', act: 'updatePermit', id: p.id }));
   actions.push(`<div class="pop-anchor">${btn('', { icon: 'more', act: 'rowMenu', id: p.id, title: 'More actions' })}</div>`);
@@ -629,9 +703,12 @@ function pPermit(id) {
   ${p.status === 'payment' ? alertBox('warn', `Payment pending: ${aed(fee.total)}`, 'The community approved your request. Pay online to get your QR codes. Work can start only after payment.', btn('Pay now', { sm: true, v: 'primary', act: 'payNow', id: p.id })) : ''}
   ${p.status === 'approved' ? alertBox('ok', 'Approved. Your pass is ready.', 'Show the QR code at the gate. Follow the work dates, hours and conditions on the permit.') : ''}
   ${p.status === 'revoked' || p.status === 'suspended' ? alertBox('bad', `${p.status === 'revoked' ? 'Revoked' : 'Suspended'} by ${esc(communityOf(p.community).name)}`, esc(p.message || 'No reason was given.') + ' QR codes no longer work at the gate. Contact the community to ask what happens next.', btn('Contact community', { sm: true, go: 'help' })) : ''}
+  ${p.inspection && p.inspection.status === 'pending' ? alertBox('info', 'Final inspection requested', 'You marked the work as completed. The community will check it and reply here. Your permit closes when they confirm.') : ''}
+  ${p.inspection && p.inspection.status === 'waiting' ? waitingAlert(p) : ''}
   ${p.status === 'review' ? alertBox('info', 'Waiting for community review', 'You will get an email and a notification when the community responds. Work can start only after approval.') : ''}
   <div class="layout-main">
     <div class="stack">
+      ${inspectionCards(p)}
       ${card('Work details', `<dl class="dl">
         <dt>Pass type</dt><dd>${esc(t.name)}</dd>
         <dt>Location</dt><dd>${esc(p.property)} · ${esc(p.units.join(', '))}</dd>
@@ -797,7 +874,7 @@ function pDetails() {
     ${F({ id: 'f-property', label: 'Building', req: true, bind: 'd.property', options: PROPERTIES, ph: 'Choose a building', err: E('property') })}
     ${combo({ id: 'f-units', label: 'Units', req: true, bind: 'd.units', options: UNITS.map(u => ({ value: u, label: u })), ph: 'Search and select units', searchPh: 'Search units', full: true, err: E('units'), hint: 'Add more than one unit only if the same work happens in each.' })}
   </div>`)}
-  ${card('Permit type', `<div class="choice-grid" role="radiogroup" aria-label="Permit type">${PERMIT_TYPES.map(x => `<label class="choice"><input type="radio" name="ptype" value="${x.id}" data-bind="d.type" data-rerender ${d.type === x.id ? 'checked' : ''}><span class="radio"></span><span class="grow"><b>${x.name}</b><small>${x.desc}</small><small class="faint">${plural(x.docs.length, 'required document')} · ${limitsShort(x)}</small><small class="fee-tag ${x.paid ? 'paid' : ''}">${feeShort(x)}${x.closure ? ' · Final inspection' : ''}</small></span></label>`).join('')}</div>
+  ${card('Permit type', `<div class="choice-grid" role="radiogroup" aria-label="Permit type">${PERMIT_TYPES.map(x => `<label class="choice"><input type="radio" name="ptype" value="${x.id}" data-bind="d.type" data-rerender ${d.type === x.id ? 'checked' : ''}><span class="radio"></span><span class="grow"><b>${x.name}</b><small>${x.desc}</small><small class="faint">${plural(x.docs.length, 'required document')} · ${limitsShort(x)}</small><small class="fee-tag ${x.paid ? 'paid' : ''}">${feeShort(x)}${x.closure && inspOn() ? ' · Final inspection' : ''}</small></span></label>`).join('')}</div>
     ${feeBox(d)}
     ${alertBox('info', `${t.name} needs: ${t.docs.map(k => DOCS[k].name).join(', ')}`, t.optional.length ? `May also be requested: ${t.optional.map(k => DOCS[k].name).join(', ')}.` : '', btn('Checklist & templates', { sm: true, act: 'checklist' }))}`)}
   ${card('About the work', `<div class="grid-2">
@@ -1092,7 +1169,11 @@ function saveBytes(bytes, name) {
 }
 
 /* ================= Permit and invoice PDFs (built in the browser with pdf-lib) ================= */
-const pdfClean = t => String(t ?? '').replace(/[^\x20-\x7E -ÿ–—‘’“”•…]/g, '?').replace(/ /g, ' ');
+// pdf-lib's Helvetica only encodes WinAnsi. Swap common symbols for plain text and replace anything else with "?".
+const pdfClean = t => String(t ?? '')
+  .replace(/[→⇒➜➔›▶]/g, '>').replace(/[←‹]/g, '<').replace(/[✓✔✅]/g, 'Yes').replace(/[✕✖✗✘❌]/g, 'No')
+  .replace(/−/g, '-').replace(/[‐‑‒]/g, '-').replace(/[     ]/g, ' ').replace(/[​-‍﻿­]/g, '').replace(/\t/g, ' ').replace(/\r\n?/g, '\n')
+  .replace(/[^\n\x20-\x7E\xA1-\xFF–—‘’“”•…€]/gu, '?');
 async function pdfKit() {
   if (!window.PDFLib) throw new Error('The PDF tools did not load.');
   const { PDFDocument, StandardFonts, rgb } = window.PDFLib;
@@ -1106,10 +1187,11 @@ async function pdfKit() {
     return out.length ? out : [''];
   };
   K.need = h => { if (K.y - h < M) { K.page = doc.addPage([W, H]); K.y = H - M; } };
-  K.text = (t, x, y, o = {}) => K.page.drawText(pdfClean(t), { x, y, size: o.size || 10, font: o.bold ? bold : font, color: o.color || ink });
+  K.text = (t, x, y, o = {}) => K.page.drawText(pdfClean(t).replace(/\n/g, ' '), { x, y, size: o.size || 10, font: o.bold ? bold : font, color: o.color || ink });
   K.para = (t, x, maxW, o = {}) => { const size = o.size || 10, lh = o.lh || size + 3.5; K.wrap(t, o.bold ? bold : font, size, maxW).forEach(l => { K.need(lh); K.text(l, x, K.y - size, o); K.y -= lh; }); };
-  K.heading = t => { K.need(30); K.y -= 10; K.text(t.toUpperCase(), M, K.y - 9, { size: 8.5, bold: true, color: grey }); K.y -= 14; K.page.drawLine({ start: { x: M, y: K.y }, end: { x: W - M, y: K.y }, thickness: 0.7, color: rule }); K.y -= 8; };
+  K.heading = t => { K.need(75); K.y -= 10; K.text(t.toUpperCase(), M, K.y - 9, { size: 8.5, bold: true, color: grey }); K.y -= 14; K.page.drawLine({ start: { x: M, y: K.y }, end: { x: W - M, y: K.y }, thickness: 0.7, color: rule }); K.y -= 8; };
   K.row = (label, value, w = 110) => { const lines = K.wrap(value || '—', font, 10, W - 2 * M - w); K.need(lines.length * 13 + 2); K.text(label, M, K.y - 10, { size: 9, color: grey }); lines.forEach((l, i) => K.text(l, M + w, K.y - 10 - i * 13)); K.y -= lines.length * 13 + 3; };
+  K.footer = label => { const n = doc.getPageCount(); doc.getPages().forEach((pg, i) => { const t = pdfClean(`${label} · Page ${i + 1} of ${n}`); pg.drawText(t, { x: W - M - font.widthOfTextAtSize(t, 8), y: 22, size: 8, font, color: grey }); }); };
   K.hex = c => { let h = c.replace('#', ''); if (h.length === 3) h = h.split('').map(x => x + x).join(''); return rgb(parseInt(h.slice(0, 2), 16) / 255, parseInt(h.slice(2, 4), 16) / 255, parseInt(h.slice(4, 6), 16) / 255); };
   K.table = (cols, rows) => {
     // cols: [{ h, w, right }]. Rows are arrays of strings.
@@ -1125,11 +1207,28 @@ async function pdfKit() {
   };
   return K;
 }
+const stepNote = a => a.step + (a.outcome && a.outcome !== 'Approved' ? ` (${a.outcome})` : '');
+function pdfApprovals(K, p) {
+  const { W, M } = K, ap = p.approvals || [];
+  K.heading('Approvals');
+  if (ap.length) K.table([{ h: 'Step', w: 118 }, { h: 'Approved by', w: 92 }, { h: 'Date and time', w: 98 }, { h: 'Comment', w: W - 2 * M - 308 }], ap.map(a => [stepNote(a), a.by, fmtDT(a.at), a.note || '-']));
+  else K.para('No approvals recorded yet.', M + 4, 400);
+}
+function pdfPeople(K, p, t) {
+  const { W, M } = K;
+  K.heading('Workers');
+  const ws = (p.workers || []).map(person).filter(Boolean).map(w => [w.name, w.role || '-', `${w.idType}`, fmt(w.idExpiry), 'On permit']);
+  (p.extraWorkers || []).forEach(x => { const w = person(x.id); if (w) ws.push([w.name, w.role || '-', w.idType, fmt(w.idExpiry), x.revoked ? `Extra worker, added ${fmt(x.added)}, revoked` : `Extra worker, added ${fmt(x.added)}`]); });
+  if (ws.length) K.table([{ h: 'Name', w: 110 }, { h: 'Role', w: 90 }, { h: 'ID type', w: 80 }, { h: 'ID expiry', w: 80 }, { h: 'Note', w: W - 2 * M - 360 }], ws); else K.para('None', M + 4, 400);
+  K.heading('Vehicles');
+  const vs = (p.vehicles || []).map(vehicle).filter(Boolean);
+  if (vs.length) K.table([{ h: 'Plate', w: 105 }, { h: 'Vehicle', w: 130 }, { h: 'Weight', w: 55 }, { h: 'Trips', w: 45 }, { h: 'Registration to', w: W - 2 * M - 335 }], vs.map(v => [v.plate, `${v.make || v.type}${v.color ? ', ' + v.color : ''}`, v.tons ? v.tons + ' t' : '-', String(tripsOf(p, v.id)), fmt(v.regExpiry)])); else K.para('None', M + 4, 400);
+}
 async function permitPdf(p) {
   const K = await pdfKit(), { W, H, M } = K;
-  const t = typeOf(p.type), c = communityOf(p.community), inv = invoiceOf(p), fee = feeFor(p);
+  const t = typeOf(p.type), c = communityOf(p.community), inv = invoiceOf(p), fee = feeFor(p), co = S.company, b = S.billing;
   K.text(c.name, M, K.y - 12, { size: 13, bold: true });
-  K.text('WORK PERMIT', M, K.y - 28, { size: 8.5, bold: true, color: K.grey });
+  K.text(p.kind === 'visitor' ? 'VISITOR PASS' : 'WORK PERMIT', M, K.y - 28, { size: 8.5, bold: true, color: K.grey });
   K.y -= 38;
   const qw = 92, qx = W - M - qw, qy = H - M - qw - 6;
   K.page.drawRectangle({ x: qx - 4, y: qy - 4, width: qw + 8, height: qw + 8, color: K.rgb(1, 1, 1), borderColor: K.rule, borderWidth: 0.8 });
@@ -1141,23 +1240,56 @@ async function permitPdf(p) {
   K.text(`Status: ${(STATUS[p.status] || [p.status])[0]}`, M, K.y - 10, { size: 9.5, color: K.grey }); K.y -= 16;
   K.y = Math.min(K.y, qy - 22);
   K.heading('Work details');
-  K.row('Permit type', t.name); K.row('Location', `${p.property} · ${p.units.join(', ')}`); K.row('Work dates', range(p.from, p.to)); K.row('Daily hours', p.hours || '—');
-  K.row('Company', `${S.company.name}${S.company.trn ? ' · TRN ' + S.company.trn : ''}`);
+  K.row('Permit type', t.name); K.row('Description', p.description || '-'); K.row('Location', `${p.property} · ${p.units.join(', ')}`); K.row('Work dates', range(p.from, p.to)); K.row('Daily hours', p.hours || '-');
   if (p.amc && p.amc.freq) K.row('Maintenance contract', `${FREQ[p.amc.freq][0]} · ${plural(Number(p.amc.visits), 'visit')} each ${FREQ[p.amc.freq][1]}`);
-  K.heading('Workers');
-  const ws = (p.workers || []).map(person).filter(Boolean).map(w => `${w.name} · ${w.role}`);
-  (p.extraWorkers || []).forEach(x => { const w = person(x.id); if (w) ws.push(`${w.name} · ${w.role} (added after approval${x.revoked ? ', revoked by the community' : ''})`); });
-  if (!ws.length) K.row('', 'None'); ws.forEach(w => K.para('• ' + w, M + 4, W - 2 * M - 4));
-  const vs = (p.vehicles || []).map(vehicle).filter(Boolean);
-  K.heading('Vehicles');
-  if (!vs.length) K.para('None', M + 4, 400); vs.forEach(v => K.para(`• ${v.plate} · ${v.make} · ${v.color}${v.tons ? ' · ' + v.tons + ' t' : ''}${t.model === 'trip' ? ' · ' + plural(tripsOf(p, v.id), 'trip') : ''}`, M + 4, W - 2 * M - 4));
-  K.heading('Approvals');
-  const ap = p.approvals || [];
-  if (ap.length) K.table([{ h: 'Department / step', w: 118 }, { h: 'Approved by', w: 92 }, { h: 'Date and time', w: 98 }, { h: 'Comment', w: W - 2 * M - 308 }], ap.map(a => [a.step + (a.outcome && a.outcome !== 'Approved' ? ` (${a.outcome})` : ''), a.by, fmtDT(a.at), a.note || '—']));
-  else K.para('No approvals recorded yet.', M + 4, 400);
-  if (fee.total > 0) { K.heading('Payment'); K.row('Fee', aed(fee.total)); K.row('Status', inv ? `Paid online on ${fmtDT(inv.paidAt)}` : 'Not paid yet'); if (inv) K.row('Payment reference', inv.id); }
+  K.row('Last updated', fmt(p.updated));
+  K.heading('Company');
+  K.row('Company', co.name); K.row('TRN', co.trn || '-'); K.row('Trade licence', co.licence ? `${co.licence.name}${co.licenceExpiry ? ' · valid to ' + fmt(co.licenceExpiry) : ''}` : '-');
+  if (b && (b.legal || b.addr1)) K.row('Address', [b.legal, b.addr1, b.addr2, b.city, b.country].filter(Boolean).join(', '));
+  K.heading('Documents attached');
+  const dx = n => { const base = String(n).replace(/ \(signed\)$/, ''); if (p.docExpiry && base in p.docExpiry) return p.docExpiry[base] ? 'Valid to ' + fmt(p.docExpiry[base]) : 'No expiry'; if (/\(signed\)$/.test(n)) return 'Signed'; const d = Object.values(DOCS).find(x => x.name === base); return d && d.noExp ? 'No expiry' : 'Not recorded'; };
+  if ((p.docs || []).length) K.table([{ h: 'Document', w: W - 2 * M - 150 }, { h: 'Expiry', w: 150 }], p.docs.map(n => [n, dx(n)])); else K.para('None', M + 4, 400);
+  pdfPeople(K, p, t);
+  K.heading('Materials and equipment');
+  if (p.materialList && p.materialList.length) K.table([{ h: 'Item', w: W - 2 * M - 230 }, { h: 'Type', w: 100 }, { h: 'Quantity', w: 130 }], p.materialList.map(m => [m.name, m.kind || '-', `${m.qty} ${m.unit || ''}`])); else K.para(p.materials ? plural(p.materials, 'item') + ' listed in the request.' : 'None', M + 4, W - 2 * M - 4);
+  K.heading('Terms signed');
+  if (p.signed) { K.row('Document', `${p.signed.name} (v${p.signed.version})`); K.row('Signed by', `${p.signed.by}, ${p.signed.position}`); K.row('Signed on', fmtDT(p.signed.at)); } else K.para('No terms to sign for this request.', M + 4, 400);
+  pdfApprovals(K, p);
+  if (fee.total > 0 || inv) { K.heading('Payment'); (inv ? inv.lines : fee.lines).forEach(l => K.row(l.label, aed(l.amount), 230)); K.row('Total', aed(inv ? inv.amount : fee.total)); K.row('Status', inv ? `Paid ${String(inv.method).toLowerCase()} on ${fmtDT(inv.paidAt)}` : 'Not paid yet'); if (inv) K.row('Invoice', inv.id); }
+  if (p.inspection) {
+    const cl = closureOf(p);
+    K.heading('Final inspection');
+    K.row('Result', cl ? cl.outcome : ({ pending: 'Waiting for the community', waiting: 'Not complete yet. Contractor to fix and send again' }[p.inspection.status] || p.inspection.status));
+    K.row('Contractor notes', p.inspection.notes || '-'); K.row('Marked completed', fmtDT(p.inspection.at));
+    if (cl) { K.row('Closing remark', cl.remark || '-'); K.row('Closed by', `${cl.by}, ${fmtDT(cl.at)}`); }
+    if ((p.inspection.rounds || []).length) K.table([{ h: 'Date', w: 88 }, { h: 'By', w: 78 }, { h: 'Decision', w: 90 }, { h: 'Comment', w: W - 2 * M - 256 }], p.inspection.rounds.map(r => [fmtDT(r.at), r.by, (DECISION[r.decision] || [r.decision])[0], (r.comment || '-') + ((r.files || []).length ? ' Files: ' + r.files.join(', ') : '')]));
+  }
   K.need(30); K.y -= 14;
   K.para(`Issued through the Buzzin contractor portal on ${fmt(TODAY)}. Show the entry code at the gate. This permit is only valid on the dates and hours above.`, M, W - 2 * M, { size: 8, color: K.grey });
+  K.footer(p.id + ' permit');
+  return K.doc.save();
+}
+async function closurePdf(p) {
+  const K = await pdfKit(), { W, M } = K, t = typeOf(p.type), c = communityOf(p.community), i = p.inspection, cl = closureOf(p);
+  K.text(c.name, M, K.y - 12, { size: 13, bold: true }); K.text('CLOSURE REPORT', M, K.y - 28, { size: 8.5, bold: true, color: K.grey }); K.y -= 40;
+  K.para(p.title, M, W - 2 * M, { size: 19, bold: true, lh: 24 });
+  K.text(p.id, M, K.y - 11, { size: 11, bold: true, color: K.grey }); K.y -= 20;
+  K.text(`Outcome: ${cl.outcome}`, M, K.y - 11, { size: 11, bold: true, color: cl.outcome === 'Completed' ? K.rgb(0.05, 0.5, 0.3) : K.rgb(0.75, 0.2, 0.2) }); K.y -= 18;
+  K.heading('Permit');
+  K.row('Reference', p.id); K.row('Title', p.title); K.row('Permit type', t.name); K.row('Community', c.name); K.row('Location', `${p.property} · ${p.units.join(', ')}`); K.row('Work dates', range(p.from, p.to)); K.row('Daily hours', p.hours || '-'); K.row('Company', `${S.company.name}${S.company.trn ? ' · TRN ' + S.company.trn : ''}`);
+  pdfPeople(K, p, t);
+  pdfApprovals(K, p);
+  K.heading('Contractor completion notes');
+  K.para(i.notes || 'No notes.', M + 4, W - 2 * M - 4); K.row('Marked completed', fmtDT(i.at)); K.row('Photos', (i.photos || []).join(', ') || 'None');
+  K.heading('Inspection rounds');
+  if ((i.rounds || []).length) K.table([{ h: 'Date', w: 88 }, { h: 'By', w: 78 }, { h: 'Decision', w: 90 }, { h: 'Comment', w: W - 2 * M - 256 - 90 }, { h: 'Files', w: 90 }], i.rounds.map(r => [fmtDT(r.at), r.by, (DECISION[r.decision] || [r.decision])[0], r.comment || '-', (r.files || []).join(', ') || '-'])); else K.para('No rounds recorded.', M + 4, 400);
+  K.heading('Closing remark');
+  K.para(cl.remark || '-', M + 4, W - 2 * M - 4); K.row('Closed by', cl.by || '-'); K.row('Closed on', fmtDT(cl.at)); K.row('Attached files', cl.files.join(', ') || 'None');
+  K.heading('Outcome');
+  K.para(cl.outcome, M + 4, W - 2 * M - 4, { size: 12, bold: true });
+  K.need(30); K.y -= 14;
+  K.para(`Created through the Buzzin contractor portal on ${fmt(TODAY)}.`, M, W - 2 * M, { size: 8, color: K.grey });
+  K.footer(p.id + ' closure report');
   return K.doc.save();
 }
 function invoiceHtml(inv) {
@@ -1249,20 +1381,20 @@ function vValidate() {
   return e;
 }
 function pCompletion(id) {
-  const p = S.permits.find(x => x.id === id) || S.permits.find(x => x.status === 'approved' && x.kind === 'work');
-  if (!p) return pageHead('No approved permit', '', btn('Back', { go: 'permits' }));
-  if (!ui.inspect || ui.inspect.id !== p.id) ui.inspect = { id: p.id, date: addDays(TODAY, 3), time: '10:00', notes: 'Work completed and the area has been cleaned.', c0: true, c1: false, c2: false, photos: null };
+  const p = S.permits.find(x => x.id === id);
+  if (!p) return pageHead('Pass not found', 'It may have been removed.', btn('Back to passes', { go: 'permits' }));
+  if (!inspOn()) return `${pageHead('Mark as completed', `${esc(p.title)} · <span class="mono">${p.id}</span>`, '', [['Authorized passes', 'permits'], [p.id, 'permit-' + p.id], ['Mark as completed']])}${alertBox('info', 'Not available', `${esc(communityOf(p.community).name)} has turned off final inspections.`, btn('Back to pass', { sm: true, go: 'permit-' + p.id }))}`;
+  if (!canComplete(p)) return `${pageHead('Mark as completed', `${esc(p.title)} · <span class="mono">${p.id}</span>`, '', [['Authorized passes', 'permits'], [p.id, 'permit-' + p.id], ['Mark as completed']])}${alertBox('info', 'This pass cannot be marked as completed', 'Only work that has started can be marked as completed, and only once.', btn('Back to pass', { sm: true, go: 'permit-' + p.id }))}`;
+  if (!ui.inspect || ui.inspect.id !== p.id) ui.inspect = { id: p.id, notes: 'Work completed and the area has been cleaned.', c0: true, c1: false, c2: false, photos: [] };
   const I = ui.inspect;
-  return `${pageHead('Request final inspection', `${esc(p.title)} · <span class="mono">${p.id}</span>`, '', [['Authorized passes', 'permits'], [p.id, 'permit-' + p.id], ['Final inspection']])}
-  ${alertBox('info', 'Tell the community when the work is finished', 'The community will confirm a time with your site contact. Your permit closes after a successful inspection.')}
-  ${card('Inspection details', `<div class="grid-2">
-    ${F({ id: 'i-date', label: 'Preferred date', req: true, type: 'date', value: I.date, attrs: `data-ins="date" min="${TODAY}"` })}
-    ${F({ id: 'i-time', label: 'Preferred time', type: 'time', value: I.time, attrs: 'data-ins="time"' })}
+  return `${pageHead('Mark as completed', `${esc(p.title)} · <span class="mono">${p.id}</span>`, '', [['Authorized passes', 'permits'], [p.id, 'permit-' + p.id], ['Mark as completed']])}
+  ${alertBox('info', 'Tell the community the work is finished', 'The community checks the work and replies. They may ask you to fix something first. Your permit closes when they confirm.')}
+  ${card('Completion details', `<div class="grid-2">
     ${F({ id: 'i-notes', label: 'Completion notes', type: 'textarea', value: I.notes, full: true, attrs: 'data-ins="notes"' })}
   </div>
-  <div class="stack-sm"><span class="label">Before you request</span>${['All tools and materials removed', 'Common areas cleaned and debris removed', 'Snagging items fixed'].map((l, i) => `<label class="check"><input type="checkbox" data-ins="c${i}" ${I['c' + i] ? 'checked' : ''}>${l}</label>`).join('')}</div>
-  <div class="stack-sm"><span class="label">Completion photos <span class="opt">(optional)</span></span>${I.photos ? `<div class="file-row"><span class="ic">IMG</span><span class="grow"><b>${esc(I.photos)}</b><span>Ready to send</span></span>${btn('', { v: 'danger-ghost', sm: true, icon: 'trash', act: 'removeInspectPhoto', title: 'Remove photo' })}</div>` : `<label class="dropzone" for="i-photos"><span class="ic">${ic('image')}</span><b>Add photos</b><span class="xs faint">JPG or PNG · Up to 5 photos</span><input class="file-input" type="file" id="i-photos" accept=".jpg,.jpeg,.png" data-ins-file></label>`}</div>`,
-  { foot: btn('Cancel', { v: 'ghost', go: 'permit-' + p.id }) + btn('Send inspection request', { v: 'primary', icon: 'send', act: 'submitInspection', id: p.id }) })}`;
+  <div class="stack-sm"><span class="label">Before you mark it completed</span>${['All tools and materials removed', 'Common areas cleaned and debris removed', 'Snagging items fixed'].map((l, i) => `<label class="check"><input type="checkbox" data-ins="c${i}" ${I['c' + i] ? 'checked' : ''}>${l}</label>`).join('')}</div>
+  <div class="stack-sm"><span class="label">Completion photos <span class="opt">(optional)</span></span>${I.photos.map((n, k) => `<div class="file-row"><span class="ic">IMG</span><span class="grow"><b>${esc(n)}</b><span>Ready to send</span></span>${btn('', { v: 'danger-ghost', sm: true, icon: 'trash', act: 'removeInspectPhoto', id: String(k), title: 'Remove ' + n })}</div>`).join('')}${I.photos.length < 5 ? `<label class="dropzone" for="i-photos"><span class="ic">${ic('image')}</span><b>Add photos</b><span class="xs faint">JPG or PNG · Up to 5 photos</span><input class="file-input" type="file" id="i-photos" accept=".jpg,.jpeg,.png" multiple data-ins-file></label>` : ''}</div>`,
+  { foot: btn('Cancel', { v: 'ghost', go: 'permit-' + p.id }) + btn('Mark as completed', { v: 'primary', icon: 'clipboard', act: 'submitInspection', id: p.id }) })}`;
 }
 
 /* ================= Help ================= */
@@ -1532,6 +1664,7 @@ function renderModal() {
     </div><p class="xs faint">Sample payment form. No real card is charged. Try 4242 4242 4242 4242.</p>`,
     foot: btn('Cancel', { act: 'closeModal' }) + btn(`Pay ${aed(f.total)}`, { v: 'primary', icon: 'lock', act: 'payConfirm' }) }); }
   if (m.type === 'invoice') { const inv = S.invoices.find(x => x.id === m.data.id); return modalFrame({ title: 'Invoice ' + esc(inv.id), size: 'lg', body: invoiceHtml(inv), foot: btn('Close', { act: 'closeModal' }) + btn('Download invoice PDF', { v: 'primary', icon: 'download', act: 'downloadInvoice', id: inv.id }) }); }
+  if (m.type === 'closure') { const p = S.permits.find(x => x.id === m.data.id); return modalFrame({ title: 'Closure report', sub: `${esc(p.title)} · ${p.id}`, size: 'lg', body: closureHtml(p), foot: btn('Close', { act: 'closeModal' }) + btn('Download report PDF', { v: 'primary', icon: 'download', act: 'downloadClosure', id: p.id }) }); }
   if (m.type === 'addWorker') {
     const p = S.permits.find(x => x.id === m.data.permitId), t = typeOf(p.type);
     const on = new Set([...(p.workers || []), ...(p.extraWorkers || []).map(x => x.id)]);
@@ -1747,7 +1880,9 @@ const ACT = {
     const warn = expiryWarnings(d);
     openConfirm({ extra: warn.length ? () => `<div class="alert alert-warn">${ic('alert')}<div class="grow"><strong>Close to expiry. The community may reject your permit.</strong>${expiryList(warn)}</div></div>` : null, title: d.resubmit ? `Resubmit ${d.resubmit}?` : 'Submit this request?', message: `${d.title} will be sent to ${community().name} for review. You can't edit it while it's under review.`, confirmText: d.resubmit ? 'Resubmit request' : 'Submit request', icon: 'send', onConfirm: () => {
       let id;
-      const rec = { community: d.community, kind: 'work', title: d.title, type: d.type, property: d.property, units: d.units, from: d.from, to: d.to, hours: `${d.start}–${d.end}`, status: 'review', updated: TODAY, workers: d.workers, vehicles: d.noVehicles ? [] : d.vehicles, tripsBy: Object.fromEntries((d.noVehicles ? [] : d.vehicles).map(id => [id, tripsOf(d, id)])), amc: amcOn(d) ? { freq: d.amcFreq, visits: Number(d.amcVisits) } : null, approvals: [], materials: d.noMaterials ? 0 : d.materials.length, docs: Object.keys(d.docs).filter(k => d.docs[k].file).map(k => DOCS[k].name).concat(formsFor(d).map(f => f.published.name + ' (signed)')) };
+      const rec = { community: d.community, kind: 'work', title: d.title, type: d.type, property: d.property, units: d.units, from: d.from, to: d.to, hours: `${d.start}–${d.end}`, status: 'review', updated: TODAY, workers: d.workers, vehicles: d.noVehicles ? [] : d.vehicles, tripsBy: Object.fromEntries((d.noVehicles ? [] : d.vehicles).map(id => [id, tripsOf(d, id)])), amc: amcOn(d) ? { freq: d.amcFreq, visits: Number(d.amcVisits) } : null, approvals: [], materials: d.noMaterials ? 0 : d.materials.length, docs: Object.keys(d.docs).filter(k => d.docs[k].file).map(k => DOCS[k].name).concat(formsFor(d).map(f => f.published.name + ' (signed)')),
+        description: d.description, docExpiry: Object.fromEntries(Object.keys(d.docs).filter(k => d.docs[k].file).map(k => [DOCS[k].name, d.docs[k].noExpiry ? '' : (d.docs[k].expiry || '')])), materialList: d.noMaterials ? [] : d.materials.map(m => ({ name: m.name, kind: m.kind, qty: m.qty, unit: m.unit })),
+        signed: formsFor(d).length ? { name: formsFor(d).map(f => f.published.name).join(', '), version: formsFor(d)[0].published.version, by: d.signer.name, position: d.signer.position, at: TODAY + 'T' + new Date().toTimeString().slice(0, 5) } : null };
       if (d.resubmit) { id = d.resubmit; const old = S.permits.find(p => p.id === id); Object.assign(old, rec, { message: '', approvals: old.approvals || [] }); } else { id = 'BZ-' + S.nextRef++; S.permits.unshift(Object.assign({ id }, rec)); }
       S.notifications.unshift({ id: uid('n'), title: `${id} submitted`, body: `${d.title} was sent to ${community().name}.`, when: 'Just now', go: 'permit-' + id, unread: false });
       S.draft = null; ui.errs = {}; persist(); go('submitted-' + id);
@@ -1762,9 +1897,32 @@ const ACT = {
       S.visitor = seed().visitor; ui.errs.visitor = false; persist(); go('submitted-' + id);
     } });
   },
-  submitInspection(t) { const p = S.permits.find(x => x.id === t.dataset.id), I = ui.inspect; if (!I.date) { toast('Choose a preferred date', { err: true }); return; } if (!(I.c0 && I.c1 && I.c2)) { openConfirm({ title: 'Some checks are not ticked', message: 'The inspection may fail if tools, debris or snagging items remain. Send anyway?', confirmText: 'Send anyway', tone: 'warn', onConfirm: () => ACT.doInspect(p) }); return; } openConfirm({ title: 'Send inspection request?', message: `${community().name} will contact your site contact to confirm ${fmt(I.date)} at ${I.time}.`, confirmText: 'Send request', icon: 'send', onConfirm: () => ACT.doInspect(p) }); },
-  doInspect(p) { p.status = 'inspection'; p.updated = TODAY; ui.inspect = null; persist(); toast(`Inspection requested for ${p.id}`); go('permit-' + p.id); },
-  removeInspectPhoto() { openConfirm({ title: 'Remove this photo?', message: ui.inspect.photos, confirmText: 'Remove', tone: 'danger', onConfirm: () => { ui.inspect.photos = null; } }); },
+  submitInspection(t) {
+    const p = S.permits.find(x => x.id === t.dataset.id), I = ui.inspect; if (!p || !I || !canComplete(p)) return;
+    const unticked = !(I.c0 && I.c1 && I.c2);
+    openConfirm({ title: 'Mark as completed?', message: `${community().name} will check ${p.title} (${p.id}) and tell you if it is complete.${unticked ? ' Some of the checks are not ticked. The community may ask you to fix things.' : ''}`, confirmText: 'Mark as completed', icon: 'clipboard', tone: unticked ? 'warn' : undefined, onConfirm: () => ACT.doInspect(p) });
+  },
+  doInspect(p) {
+    const I = ui.inspect || { notes: '', photos: [] };
+    p.status = 'inspection'; p.updated = TODAY;
+    p.inspection = { status: 'pending', notes: (I.notes || '').trim(), photos: [...(I.photos || [])], at: TODAY + 'T' + new Date().toTimeString().slice(0, 5), rounds: [] };
+    ui.inspect = null;
+    S.notifications.unshift({ id: uid('n'), title: `${p.id} marked as completed`, body: `${community().name} will check the work and reply.`, when: 'Just now', go: 'permit-' + p.id, unread: false });
+    persist(); toast(`${p.id} marked as completed. Waiting for the community.`); go('permit-' + p.id);
+  },
+  resubmitInspection(t) {
+    ui.pop = null; const p = S.permits.find(x => x.id === t.dataset.id); if (!p || !p.inspection || p.inspection.status !== 'waiting') return;
+    openConfirm({ title: 'Mark as completed again?', message: `${communityOf(p.community).name} will check ${p.title} (${p.id}) again.`, confirmText: 'Mark as completed', icon: 'clipboard',
+      extra: () => F({ id: 'ri-note', label: 'Note', opt: true, bind: 'm.note', type: 'textarea', rows: 2, ph: 'For example, The tiles are now aligned.' }),
+      onConfirm: d => { p.inspection.rounds.push({ at: TODAY + 'T' + new Date().toTimeString().slice(0, 5), by: S.profile.name, decision: 'resubmitted', comment: ((d && d.note) || '').trim(), files: [] }); p.inspection.status = 'pending'; p.updated = TODAY; persist(); toast(`${p.id} sent for inspection again`); } });
+  },
+  removeInspectPhoto(t) { const k = Number(t.dataset.id), name = ui.inspect.photos[k]; openConfirm({ title: 'Remove this photo?', message: name, confirmText: 'Remove', tone: 'danger', onConfirm: () => { ui.inspect.photos.splice(k, 1); } }); },
+  viewClosure(t) { ui.pop = null; ui.modal = { type: 'closure', data: { id: t.dataset.id } }; render(); },
+  async downloadClosure(t) {
+    const p = S.permits.find(x => x.id === t.dataset.id);
+    try { saveBytes(await closurePdf(p), p.id + '-closure-report.pdf'); toast('Closure report downloaded'); }
+    catch (e) { toast('Could not create the closure report. ' + e.message, { err: true }); }
+  },
   sendHelp() { const msg = document.getElementById('h-msg'); if (!msg.value.trim()) { toast('Write your message first', { err: true }); msg.focus(); return; } openConfirm({ title: `Send to ${community().name}?`, message: 'They reply to your email address. Replies also appear in your notifications.', confirmText: 'Send message', icon: 'send', onConfirm: () => toast('Message sent (preview)') }); },
   openSign(t) { ui.signMode = (t && t.dataset.mode) || ui.signMode || 'draw'; ui.modal = { type: 'sign', data: { upload: null, orig: null, removeBg: true } }; render(); },
   sigClear() { setupCanvas(); },
@@ -1990,7 +2148,7 @@ document.addEventListener('change', e => {
   }
   if (el.dataset.actChange === 'toggleSel') { const k = el.dataset.kind, arr = S.draft[k]; S.draft[k] = el.checked ? [...new Set([...arr, el.value])] : arr.filter(x => x !== el.value); persistDraft(); render(); return; }
   if (el.dataset.ins !== undefined && el.type === 'checkbox') { ui.inspect[el.dataset.ins] = el.checked; return; }
-  if (el.dataset.insFile !== undefined && el.files[0]) { ui.inspect.photos = el.files.length > 1 ? `${el.files.length} photos` : el.files[0].name; render(); return; }
+  if (el.dataset.insFile !== undefined && el.files[0]) { ui.inspect.photos = [...ui.inspect.photos, ...[...el.files].map(f => f.name)].slice(0, 5); el.value = ''; render(); return; }
   if (el.dataset.file) { handleFile(el.dataset.file, el.files[0]); el.value = ''; return; }
   if (el.dataset.bind) {
     if (el.type === 'checkbox') setB(el.dataset.bind, el.checked);

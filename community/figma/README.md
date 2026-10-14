@@ -3,10 +3,10 @@ Figma desktop → Plugins → Development → Import plugin from manifest → `c
 
 | File | Screens |
 |---|---|
-| `buzzin-admin-scenes.json` | 113 |
+| `buzzin-admin-scenes.json` | 124 |
 | `buzzin-approver-scenes.json` | 34 |
 | `buzzin-reviewer-scenes.json` | 20 |
-| `buzzin-redesign-scenes.json` (contractor, in `redesign/figma/`) | 106 |
+| `buzzin-redesign-scenes.json` (contractor, in `redesign/figma/`) | 105 |
 | `buzzin-events-scenes.json` (separate events workspace, not in the Android app) | 46 |
 
 Each file has desktop and mobile frames, popups and a dark-mode screen.
